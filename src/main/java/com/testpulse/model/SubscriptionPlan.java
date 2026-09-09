@@ -1,5 +1,6 @@
 package com.testpulse.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -17,7 +18,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SubscriptionPlan {
+public class  SubscriptionPlan {
 
     @Id
     @Column(nullable = false)
@@ -57,14 +58,23 @@ public class SubscriptionPlan {
     @JsonProperty("isRecommended")
     private boolean isRecommended;
 
-        @ManyToMany
-        @JoinTable(
-            name = "subscription_plan_classes",
-            joinColumns = @JoinColumn(name = "plan_id"),
-            inverseJoinColumns = @JoinColumn(name = "class_id")
-        )
-        @Builder.Default
-        private Set<EducationClass> educationClasses = new LinkedHashSet<>();
+    @ManyToMany
+    @JoinTable(
+        name = "subscription_plan_classes",
+        joinColumns = @JoinColumn(name = "plan_id"),
+        inverseJoinColumns = @JoinColumn(name = "class_id")
+    )
+    @Builder.Default
+    @JsonIgnore
+    private Set<EducationClass> educationClasses = new LinkedHashSet<>();
+
+    @JsonProperty("classId")
+    public Long getClassId() {
+        if (educationClasses == null || educationClasses.isEmpty()) {
+            return null;
+        }
+        return educationClasses.iterator().next().getId();
+    }
 
     @ElementCollection
     @CollectionTable(name = "subscription_plan_features", joinColumns = @JoinColumn(name = "plan_id"))

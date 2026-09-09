@@ -7,23 +7,29 @@ VALUES
 
 INSERT IGNORE INTO subscription_plans (id, plan_code, title, subtitle, duration_days, original_amount_in_paise, discounted_amount_in_paise, display_price, display_original_price, discount_percentage, badge, is_recommended)
 VALUES
-('plan_annual', 'ANNUAL_SUPER_PASS', 'Annual Super Pass', 'Best value for full exam cycle', 210, 9900, 5900, '₹59', '₹99', 40, 'BEST VALUE', true);
+('plan_annual', 'ANNUAL_SUPER_PASS', 'Annual Super Pass', 'Best value for full exam cycle', 210, 9900, 5900, '₹59', '₹99', 40, 'BEST VALUE', true),
+('prime_plan_annual', 'ANNUAL_PRIME_PASS', 'Annual prime Pass', 'Best value for full exam cycle', 210, 9900, 7900, '₹79', '₹99', 20, 'BEST VALUE', true);
 
 INSERT IGNORE INTO subscription_plan_features (plan_id, feature)
 VALUES
 ('plan_annual', 'Unlimited Full-Length Mock Tests'),
-('plan_annual', 'AI Weak Area Deep Analytics'),
-('plan_annual', 'Step-by-Step LaTeX Solutions'),
+('plan_annual', 'Weak Area Deep Analytics'),
+('plan_annual', 'Step-by-Step Solutions'),
 ('plan_annual', 'Custom Test Generator Access'),
 ('plan_annual', 'AI curreted Question Bank'),
 ('plan_annual', 'VVIP question bank access'),
 ('plan_annual', 'Previous Year Question Papers with AI based analysis'),
-('plan_annual', 'AI based performance analysis');
+('prime_plan_annual', 'Unlimited Full-Length Mock Tests'),
+('prime_plan_annual', 'Weak Area Deep Analytics'),
+('prime_plan_annual', 'Step-by-Step Solutions'),
+('prime_plan_annual', 'Custom Test Generator Access'),
+('prime_plan_annual', 'AI curreted Question Bank'),
+('prime_plan_annual', 'VVIP question bank access'),
+('prime_plan_annual', 'Previous Year Question Papers with AI based analysis');
+
 
 INSERT IGNORE INTO subscription_plan_classes (plan_id, class_id)
-SELECT 'plan_annual', id
-FROM education_classes
-WHERE active = true;
+values('plan_annual',1),('prime_plan_annual',2);
 
 
 INSERT IGNORE INTO coupons (code, title, discount_type, discount_value, minimum_amount, valid_from, valid_to, is_active, max_uses, applicable_plan_id, created_at)
