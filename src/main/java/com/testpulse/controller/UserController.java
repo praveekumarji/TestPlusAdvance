@@ -78,7 +78,7 @@ public class UserController {
                 return ResponseEntity.status(403).body(Map.of("error", "You cannot update this user's class."));
             }
             User user = userService.updateClass(id, request.getClassId());
-            return ResponseEntity.ok(toUserResponse(user));
+            return ResponseEntity.ok(Map.of("success", true));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
