@@ -1,0 +1,224 @@
+package com.testpulse.controller;
+
+import com.testpulse.dto.AuthResponse;
+import com.testpulse.dto.ChangePasswordRequest;
+import com.testpulse.dto.CreateUserRequest;
+import com.testpulse.dto.ForgotPasswordRequest;
+import com.testpulse.dto.GoogleAuthRequest;
+import com.testpulse.dto.ResetPasswordRequest;
+import com.testpulse.dto.UserResponse;
+import com.testpulse.model.SubscriptionStatus;
+import com.testpulse.model.User;
+import com.testpulse.service.PasswordResetService;
+import com.testpulse.service.GoogleAuthService;
+import com.testpulse.service.UserService;
+import com.testpulse.service.WelcomeEmailService;
+import com.testpulse.util.JwtUtil;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final UserService userService;
+    private final PasswordResetService passwordResetService;
+    private final GoogleAuthService googleAuthService;
+    private final WelcomeEmailService welcomeEmailService;
+
+    public AuthController(UserService userService, PasswordResetService passwordResetService,
+                          GoogleAuthService googleAuthService, WelcomeEmailService welcomeEmailService) {
+        this.userService = userService;
+        this.passwordResetService = passwordResetService;
+        this.googleAuthService = googleAuthService;
+        this.welcomeEmailService = welcomeEmailService;
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(
+            @RequestParam(required = false) String email,
+            @RequestParam String mobileNumber,
+            @RequestParam String password,
+            @RequestParam String fullName,
+            @RequestParam(defaultValue = "en") String preferredLanguage,
+            @RequestParam(required = false) String deviceHash,
+            @RequestParam(required = false) Long classId) {
+        try {
+            User user = userService.registerUser(email, mobileNumber, password, fullName, preferredLanguage, deviceHash, classId);
+            if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                welcomeEmailService.sendWelcomeEmailAsync(user, password);
+            }
+            String token = JwtUtil.generateToken(user.getId(), user.getMobileNumber(), user.getRole().name());
+            return ResponseEntity.ok(AuthResponse.builder()
+                    .success(true)
+                    .message("Registration successful")
+                    .isNewUser(true)
+                    .token(token)
+                    .user(toUserResponse(user))
+                    .build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/addUser")
+    public ResponseEntity<?> addUser(@RequestBody CreateUserRequest request) {
+        try {
+            if (request == null) {
+                throw new IllegalArgumentException("User payload cannot be null.");
+            }
+            if ((request.getEmail() == null || request.getEmail().isBlank()) &&
+                    (request.getMobileNumber() == null || request.getMobileNumber().isBlank())) {
+                throw new IllegalArgumentException("Either email or mobile number is required.");
+            }
+            if (request.getPassword() == null || request.getPassword().isBlank()) {
+                throw new IllegalArgumentException("Password is required.");
+            }
+            if (request.getFullName() == null || request.getFullName().isBlank()) {
+                throw new IllegalArgumentException("Full name is required.");
+            }
+
+            String subscriptionStatus = request.getSubscriptionStatus() == null ? "FREE" : request.getSubscriptionStatus();
+            if (!"FREE".equalsIgnoreCase(subscriptionStatus) && !"PAID".equalsIgnoreCase(subscriptionStatus)) {
+                throw new IllegalArgumentException("subscriptionStatus must be FREE or PAID.");
+            }
+
+            User user = userService.registerUser(
+                    request.getEmail(),
+                    request.getMobileNumber(),
+                    request.getPassword(),
+                    request.getFullName(),
+                        request.getPreferredLanguage() == null ? "en" : request.getPreferredLanguage(),
+                        request.getDeviceHash(),
+                        request.getClassId()
+            );
+
+            if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                welcomeEmailService.sendWelcomeEmailAsync(user, request.getPassword());
+            }
+
+            if ("PAID".equalsIgnoreCase(subscriptionStatus)) {
+                user = userService.updateSubscriptionStatus(user.getId(), SubscriptionStatus.PAID);
+            }
+            String token = JwtUtil.generateToken(user.getId(), user.getMobileNumber(), user.getRole().name());
+            return ResponseEntity.ok(AuthResponse.builder()
+                    .success(true)
+                    .message("Registration successful")
+                    .isNewUser(true)
+                    .token(token)
+                    .user(toUserResponse(user))
+                    .build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestParam String mobileNumber, @RequestParam String password) {
+        try {
+            Optional<User> user = userService.login(mobileNumber, password);
+            if (user.isPresent()) {
+                String token = JwtUtil.generateToken(user.get().getId(), user.get().getMobileNumber(), user.get().getRole().name());
+                return ResponseEntity.ok(AuthResponse.builder()
+                    .success(true)
+                    .message("Authentication successful")
+                    .isNewUser(false)
+                        .token(token)
+                        .user(toUserResponse(user.get()))
+                        .build());
+            }
+            return ResponseEntity.status(401).body("Invalid email/mobile number or password.");
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<?> google(@Valid @RequestBody GoogleAuthRequest request) {
+        try {
+            return ResponseEntity.ok(googleAuthService.authenticate(request));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            passwordResetService.sendOtp(request);
+            return ResponseEntity.ok(Map.of("message", "Password reset OTP sent to your email."));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        try {
+            passwordResetService.resetPassword(request);
+            return ResponseEntity.ok(Map.of("message", "Password reset successfully."));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
+        try {
+            if (request == null) {
+                throw new IllegalArgumentException("Password payload cannot be null.");
+            }
+
+            String subject = SecurityContextHolder.getContext().getAuthentication().getName();
+            userService.changePassword(
+                    Long.valueOf(subject),
+                    request.getCurrentPassword(),
+                    request.getNewPassword()
+            );
+            return ResponseEntity.ok(Map.of(
+                    "message", "Password changed successfully",
+                    "status", "SUCCESS"
+            ));
+        } catch (NumberFormatException ex) {
+            return ResponseEntity.status(401).body("Valid authentication is required.");
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(Map.of(
+                "message", "Logout successful",
+                "status", "SUCCESS"
+        ));
+    }
+
+    private UserResponse toUserResponse(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        return UserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .mobileNumber(user.getMobileNumber())
+                .fullName(user.getFullName())
+                .classId(user.getEducationClass() == null ? null : user.getEducationClass().getId())
+                .className(user.getEducationClass() == null ? null : user.getEducationClass().getName())
+                .preferredLanguage(user.getPreferredLanguage())
+                .subscriptionStatus(user.getEffectiveSubscriptionStatus())
+                .subscriptionPlan(user.getSubscriptionPlan())
+                .subscriptionExpiry(user.getSubscriptionExpiry())
+                .hasUsedTrial(user.isHasUsedTrial())
+                .message(user.isHasUsedTrial() ? null : "A trial was already used on this device.")
+                .build();
+    }
+}
+

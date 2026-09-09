@@ -1,0 +1,68 @@
+package com.testpulse.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/api/auth/change-password").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/classes", "/api/classes/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/classes").hasRole("ADMIN")
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/api/tests/**",
+                                "/api/payment/**",
+                                "/api/config",
+                                "/api/feedback",
+                                "/error",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs"
+                        ).permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/subscription-plans").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/coupons").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/coupons/validate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/coupons/calculate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/subscription-plans").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/subscription-plans/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/subscription-plans/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/coupons").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/coupons/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/coupons/**").hasRole("ADMIN")
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                .httpBasic(Customizer.withDefaults())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
