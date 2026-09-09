@@ -10,7 +10,8 @@ import java.math.BigDecimal;
 public class PaymentRecordRequest {
     @NotNull
     private Long userId;
-
+    @NotNull
+    private Integer classId;
     private String userMobile;
     private String userEmail;
     private String userName;

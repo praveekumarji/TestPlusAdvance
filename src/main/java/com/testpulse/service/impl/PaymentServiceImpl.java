@@ -173,7 +173,9 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Payment record stored successfully for userId: {}, paymentId: {}", user.getId(), payment.getId());
         if (storedStatus == PaymentStatus.SUCCESS) {
             log.info("Updating user subscription for userId: {}", user.getId());
-            user.setSubscriptionStatus(SubscriptionStatus.PAID);
+            //get classId from user education class and set it to subscriptionClassId
+            int classId= request.getClassId();
+            user.setSubscriptionStatus((classId==2)?SubscriptionStatus.PRIME :SubscriptionStatus.PAID);
             user.setSubscriptionClassId(user.getEducationClass() == null ? null : user.getEducationClass().getId());
             log.info("seting user subscription status to PAID for userId: {}", user.getId());
             user.setSubscriptionPlan(request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode());
