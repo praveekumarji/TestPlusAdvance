@@ -1,8 +1,8 @@
 INSERT IGNORE INTO education_classes (code, name, active)
 VALUES
 
-('CLASS_10', 'BIHAR BOARD 10', true),
-('CLASS_12', 'BIHAR BOARD 12', true)
+('CLASS_10', 'BSEB 10th(Matric)', true),
+('CLASS_12', 'BSEB 12th(Inter)', true)
 ;
 
 INSERT IGNORE INTO subscription_plans (id, plan_code, title, subtitle, duration_days, original_amount_in_paise, discounted_amount_in_paise, display_price, display_original_price, discount_percentage, badge, is_recommended)

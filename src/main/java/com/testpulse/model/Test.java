@@ -58,4 +58,6 @@ public class Test {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    private int totalQuestions;
 }

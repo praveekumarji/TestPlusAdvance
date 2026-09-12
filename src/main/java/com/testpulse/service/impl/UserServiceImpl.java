@@ -23,7 +23,8 @@ import java.util.Optional;
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
-    private static final String TRIAL_PLAN = "TRIAL_3_DAY";
+    private static final String TRIAL_PLAN = "TRIAL_PLAN";
+    public static final String SUBSCRIPTION_FREE = "FREE";
 
     private final UserRepository userRepository;
     private final TrialDeviceRepository trialDeviceRepository;
@@ -91,6 +92,8 @@ public class UserServiceImpl implements UserService {
                 .preferredLanguage(normalizeLanguage(preferredLanguage))
                 .subscriptionStatus(trialAvailable ? SubscriptionStatus.TRIAL : SubscriptionStatus.FREE)
                 .subscriptionPlan(trialAvailable ? TRIAL_PLAN : null)
+                .class1SubscriptionStatus(trialAvailable ? "TRIAL" : "FREE")
+                .class2SubscriptionStatus(trialAvailable ? "TRIAL" : "FREE")
                 .subscriptionExpiry(trialAvailable ? LocalDateTime.now().plusDays(trialDurationDays) : null)
                 .hasUsedTrial(trialAvailable)
                 .build();
@@ -303,14 +306,23 @@ public class UserServiceImpl implements UserService {
     }
 
             private User expireSubscriptionIfNeeded(User user) {
-            boolean activeSubscription = user.getSubscriptionStatus() == SubscriptionStatus.TRIAL
-                || user.getSubscriptionStatus() == SubscriptionStatus.PAID
-                || user.getSubscriptionStatus() == SubscriptionStatus.PRIME;
+            boolean activeSubscription = user.getSubscriptionStatus() == SubscriptionStatus.TRIAL;
+            int classid= Math.toIntExact(user.getEducationClass().getId());
+            if(1==classid){
+                activeSubscription = user.getClass1SubscriptionStatus().equals("TRIAL");
+            }else if (2==classid){
+                activeSubscription = user.getClass2SubscriptionStatus().equals("TRIAL");
+            }
 
             if (activeSubscription
                 && user.getSubscriptionExpiry() != null
                 && !user.getSubscriptionExpiry().isAfter(LocalDateTime.now())) {
             user.setSubscriptionStatus(SubscriptionStatus.FREE);
+            if(classid==1){
+                user.setClass1SubscriptionStatus(SUBSCRIPTION_FREE);
+            }else if(classid==2) {
+                user.setClass2SubscriptionStatus(SUBSCRIPTION_FREE);
+            }
             userRepository.save(user);
         }
         return user;

@@ -19,6 +19,12 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private final JwtUtil jwtUtil;
+
+    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -28,7 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (authorization != null && authorization.startsWith("Bearer ")) {
             String token = authorization.substring(7);
             try {
-                var claims = JwtUtil.parseToken(token);
+                var claims = jwtUtil.parseToken(token);
                 String role = claims.get("role", String.class);
                 var auth = new UsernamePasswordAuthenticationToken(
                         claims.getSubject(),

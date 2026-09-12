@@ -39,12 +39,14 @@ public class GoogleAuthService {
     private final TrialDeviceRepository trialDeviceRepository;
     private final PasswordEncoder passwordEncoder;
     private final WelcomeEmailService welcomeEmailService;
+    private final JwtUtil jwtUtil;
     private final int trialDurationDays;
 
     public GoogleAuthService(UserRepository userRepository,
                              TrialDeviceRepository trialDeviceRepository,
                              PasswordEncoder passwordEncoder,
                              WelcomeEmailService welcomeEmailService,
+                             JwtUtil jwtUtil,
                              @Value("${subscription.trial-days:3}") int trialDurationDays) {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(java.time.Duration.ofSeconds(5))
@@ -53,6 +55,7 @@ public class GoogleAuthService {
         this.trialDeviceRepository = trialDeviceRepository;
         this.passwordEncoder = passwordEncoder;
         this.welcomeEmailService = welcomeEmailService;
+        this.jwtUtil = jwtUtil;
         this.trialDurationDays = trialDurationDays;
     }
 
@@ -106,7 +109,7 @@ public class GoogleAuthService {
             .success(true)
             .message("Authentication successful")
             .isNewUser(isNewUser)
-                .token(JwtUtil.generateToken(user.getId(), user.getMobileNumber(), user.getRole().name()))
+                .token(jwtUtil.generateToken(user.getId(), user.getMobileNumber(), user.getRole().name()))
                 .user(toUserResponse(user))
                 .build();
     }

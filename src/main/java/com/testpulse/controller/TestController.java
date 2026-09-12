@@ -105,6 +105,7 @@ public class TestController {
                 .testType(test.getTestType() == null ? null : test.getTestType().name())
                 .classId(test.getEducationClass() == null ? null : test.getEducationClass().getId())
                 .className(test.getEducationClass() == null ? null : test.getEducationClass().getName())
+                .totalQuestions(test.getTotalQuestions())
                 .build();
     }
 

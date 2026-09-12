@@ -76,6 +76,12 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "class1_subscription_status")
+    private String class1SubscriptionStatus;
+
+    @Column(name = "class2_subscription_status")
+    private String class2SubscriptionStatus;
+
     @Transient
     public SubscriptionStatus getEffectiveSubscriptionStatus() {
         if ((subscriptionStatus == SubscriptionStatus.TRIAL
