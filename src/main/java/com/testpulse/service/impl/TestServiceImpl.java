@@ -13,6 +13,7 @@ import com.testpulse.util.LocalizedTextResolver;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -100,17 +101,16 @@ public class TestServiceImpl implements TestService {
 
     @Override
     @CacheEvict(value = "tests", allEntries = true)
+    @Transactional
     public List<Test> addTest(List<Test> tests) {
         if (tests == null || tests.isEmpty()) {
             throw new IllegalArgumentException("At least one test is required.");
         }
 
-        List<Test> savedTests = new ArrayList<>();
         for (Test test : tests) {
             validateTest(test);
-            savedTests.add(testRepository.save(test));
         }
-        return savedTests;
+        return testRepository.saveAll(tests);
     }
 
     @Override

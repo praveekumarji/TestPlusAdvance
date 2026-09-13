@@ -16,7 +16,6 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -38,7 +37,6 @@ class QuestionServiceExcelImportTest {
     void shouldImportQuestionsFromExcelFile() throws Exception {
         com.testpulse.model.Test test = new com.testpulse.model.Test();
         test.setId(42L);
-        when(testRepository.findById(42L)).thenReturn(Optional.of(test));
         when(questionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = new MockMultipartFile(

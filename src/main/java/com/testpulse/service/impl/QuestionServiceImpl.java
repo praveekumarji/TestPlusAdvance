@@ -9,11 +9,14 @@ import com.testpulse.service.QuestionService;
 import com.testpulse.util.LocalizedTextResolver;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -29,10 +32,13 @@ public class QuestionServiceImpl implements QuestionService {
 
     private final QuestionRepository questionRepository;
     private final TestRepository testRepository;
+    private final CacheManager cacheManager;
 
-    public QuestionServiceImpl(QuestionRepository questionRepository, TestRepository testRepository) {
+    public QuestionServiceImpl(QuestionRepository questionRepository, TestRepository testRepository,
+                               CacheManager cacheManager) {
         this.questionRepository = questionRepository;
         this.testRepository = testRepository;
+        this.cacheManager = cacheManager;
     }
 
     @Override
@@ -46,22 +52,27 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     @Override
-    @CacheEvict(value = "questions", allEntries = true)
+    @Transactional
     public List<Question> createQuestions(List<Question> questions) {
         if (questions == null || questions.isEmpty()) {
             throw new IllegalArgumentException("At least one question is required.");
         }
 
+        Map<Long, Test> testsById = loadTests(questions);
         for (Question question : questions) {
             validateQuestion(question);
-            resolveTestReference(question);
+            resolveTestReference(question, testsById);
         }
 
-        return questionRepository.saveAll(questions);
+        Set<Long> affectedTestIds = questions.stream()
+            .map(question -> question.getTest().getId())
+            .collect(java.util.stream.Collectors.toSet());
+        List<Question> savedQuestions = questionRepository.saveAll(questions);
+        evictQuestionCaches(affectedTestIds);
+        return savedQuestions;
     }
 
     @Override
-    @CacheEvict(value = "questions", allEntries = true)
     public List<Question> createQuestionsFromDto(List<CreateQuestionRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             throw new IllegalArgumentException("At least one question is required.");
@@ -75,7 +86,6 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     @Override
-    @CacheEvict(value = "questions", allEntries = true)
     public Question updateQuestion(Long id, Question questionUpdate) {
         Question existing = questionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
@@ -113,20 +123,21 @@ public class QuestionServiceImpl implements QuestionService {
         existing.setActive(questionUpdate.isActive());
 
         validateQuestion(existing);
-        return questionRepository.save(existing);
+        Question savedQuestion = questionRepository.save(existing);
+        evictQuestionCaches(Set.of(existing.getTest().getId()));
+        return savedQuestion;
     }
 
     @Override
-    @CacheEvict(value = "questions", allEntries = true)
     public void deactivateQuestion(Long id) {
         Question question = questionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
         question.setActive(false);
         questionRepository.save(question);
+        evictQuestionCaches(Set.of(question.getTest().getId()));
     }
 
     @Override
-    @CacheEvict(value = "questions", allEntries = true)
     public List<Question> importQuestionsFromExcel(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Excel file is required.");
@@ -386,7 +397,26 @@ public class QuestionServiceImpl implements QuestionService {
         }
     }
 
-    private void resolveTestReference(Question question) {
+    private Map<Long, Test> loadTests(List<Question> questions) {
+        Set<Long> testIds = questions.stream()
+                .filter(question -> question != null && question.getTest() == null)
+                .map(Question::getTestId)
+                .filter(Objects::nonNull)
+                .filter(testId -> !testId.isBlank())
+                .map(Long::valueOf)
+                .collect(java.util.stream.Collectors.toSet());
+
+        Map<Long, Test> testsById = new HashMap<>();
+            if (testIds.isEmpty()) {
+                return testsById;
+            }
+        for (Test test : testRepository.findAllById(testIds)) {
+            testsById.put(test.getId(), test);
+        }
+        return testsById;
+    }
+
+    private void resolveTestReference(Question question, Map<Long, Test> testsById) {
         if (question.getTest() != null) {
             return;
         }
@@ -396,9 +426,38 @@ public class QuestionServiceImpl implements QuestionService {
             throw new IllegalArgumentException("Question testId is required.");
         }
 
-        Test test = testRepository.findById(Long.valueOf(testId))
-                .orElseThrow(() -> new IllegalArgumentException("Test not found for id: " + testId));
+        Long parsedTestId = Long.valueOf(testId);
+        Test test = testsById.get(parsedTestId);
+        if (test == null) {
+            throw new IllegalArgumentException("Test not found for id: " + testId);
+        }
         question.setTest(test);
+    }
+
+    private void evictQuestionCaches(Collection<Long> testIds) {
+        if (cacheManager == null) {
+            return;
+        }
+
+        Cache questionsCache = cacheManager.getCache("questions");
+        if (questionsCache == null) {
+            return;
+        }
+
+        if (questionsCache instanceof CaffeineCache caffeineCache) {
+            Set<String> prefixes = testIds.stream()
+                    .map(testId -> testId + ":")
+                    .collect(java.util.stream.Collectors.toSet());
+            caffeineCache.getNativeCache().asMap().keySet().removeIf(key -> prefixes.stream()
+                    .anyMatch(prefix -> String.valueOf(key).startsWith(prefix)));
+            return;
+        }
+
+        for (Long testId : testIds) {
+            questionsCache.evict(testId + ":en");
+            questionsCache.evict(testId + ":hi");
+            questionsCache.evict(testId + ":hindi");
+        }
     }
 
     private Question applyLanguage(Question question, String lang) {

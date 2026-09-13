@@ -1,16 +1,19 @@
 package com.testpulse.config;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Duration;
 
 /**
  * Cache Configuration for TestPulse Application
  * 
  * This configuration enables caching across the application to reduce unnecessary database calls.
- * Uses ConcurrentMapCacheManager for in-memory caching with the following cache names:
+ * Uses Caffeine for bounded in-memory caching with the following cache names:
  * - users: Caches user data by email, mobile number, and ID
  * - tests: Caches test lists and individual test details
  * - questions: Caches questions grouped by test ID and language
@@ -20,7 +23,7 @@ import org.springframework.context.annotation.Configuration;
  * - appConfig: Caches application configuration values
  * 
  * For production environments with higher traffic, consider using:
- * - Caffeine Cache: Better performance with TTL and size limits
+ * - Redis: Distributed caching across multiple instances
  * - Redis: Distributed caching across multiple instances
  */
 @Configuration
@@ -28,7 +31,7 @@ import org.springframework.context.annotation.Configuration;
 public class CacheConfig {
 
     /**
-     * Configure ConcurrentMapCacheManager for in-memory caching
+    * Configure Caffeine for bounded in-memory caching.
      * 
      * Cache Names:
      * - users: User lookups (email, mobile, ID)
@@ -41,7 +44,7 @@ public class CacheConfig {
      */
     @Bean
     public CacheManager cacheManager() {
-        return new ConcurrentMapCacheManager(
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 "users",
                 "tests",
                 "questions",
@@ -52,5 +55,10 @@ public class CacheConfig {
                 "appConfig",
                 "testAttempts"
         );
+            cacheManager.setCaffeine(Caffeine.newBuilder()
+                .maximumSize(3_000)
+                .expireAfterWrite(Duration.ofMinutes(10))
+                .recordStats());
+            return cacheManager;
     }
 }
