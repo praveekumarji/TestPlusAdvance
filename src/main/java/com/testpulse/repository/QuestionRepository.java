@@ -12,7 +12,7 @@ import java.util.List;
 
 @Repository
 public interface QuestionRepository extends JpaRepository<Question, Long> {
-    List<Question> findByTest_Id(Long testId);
+        List<Question> findTop100ByTest_IdAndActiveTrueOrderByIdAsc(Long testId);
 
     @Query("select q from Question q join fetch q.test t "
             + "where q.active = true and t.active = true "

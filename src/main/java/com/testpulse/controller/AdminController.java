@@ -96,6 +96,8 @@ public class AdminController {
             Question question = Question.builder()
                     .subject(request.getSubject())
                     .subjectHi(request.getSubjectHi())
+                    .topic(request.getTopic())
+                    .topicHi(request.getTopicHi())
                     .text(request.getText())
                     .textHi(request.getTextHi())
                     .options(request.getOptions())

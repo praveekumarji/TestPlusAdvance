@@ -38,4 +38,6 @@ public class CreateTestRequest {
 
     @Builder.Default
     private String testType = "FREE";
+
+    private int totalQuestions;
 }

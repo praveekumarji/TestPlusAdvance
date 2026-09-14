@@ -15,6 +15,8 @@ public class QuestionResponse {
     private Long id;
     private Long testId;
     private String subject;
+    private String topic;
+    private String topicHi;
     private String text;
     private List<String> options;
     private int correctOptionIndex;

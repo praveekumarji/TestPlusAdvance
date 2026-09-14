@@ -57,13 +57,13 @@ public class TestServiceImpl implements TestService {
     }
 
     @Override
-    @Cacheable(value = "tests", key = "#id + ':' + #lang")
+    @Cacheable(value = "tests", key = "#id + ':' + #lang", sync = true)
     public Test getTestById(Long id, String lang) {
         return getTestById(id, null, lang);
     }
 
     @Override
-    @Cacheable(value = "tests", key = "#id + ':' + #classId + ':' + #lang")
+    @Cacheable(value = "tests", key = "#id + ':' + #classId + ':' + #lang", sync = true)
     public Test getTestById(Long id, Long classId, String lang) {
         Test test = testRepository.findById(id)
                 .filter(Test::isActive)

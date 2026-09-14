@@ -24,6 +24,10 @@ public class CreateQuestionRequest {
 
     private String subjectHi;
 
+    private String topic;
+
+    private String topicHi;
+
     @NotBlank
     private String text;
 

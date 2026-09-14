@@ -31,6 +31,9 @@ public class Question {
 
     private String topic;
 
+    @Column
+    private String topicHi;
+
     @Column(nullable = false)
     private String text;
 

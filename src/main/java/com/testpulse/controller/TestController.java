@@ -118,6 +118,8 @@ public class TestController {
                 .id(question.getId())
                 .testId(question.getTest() == null ? null : question.getTest().getId())
                 .subject(question.getSubject())
+                .topic(question.getTopic())
+                .topicHi(question.getTopicHi())
                 .text(question.getText())
                 .options(question.getOptions())
                 .correctOptionIndex(question.getCorrectOptionIndex())

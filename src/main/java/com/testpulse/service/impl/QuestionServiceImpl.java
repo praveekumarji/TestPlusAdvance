@@ -42,11 +42,10 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     @Override
-    @Cacheable(value = "questions", key = "#testId + ':' + #lang")
+    @Cacheable(value = "questions", key = "#testId + ':' + #lang", sync = true)
     public List<Question> getQuestionsByTestId(Long testId, String lang) {
-        List<Question> questions = questionRepository.findByTest_Id(testId);
+        List<Question> questions = questionRepository.findTop100ByTest_IdAndActiveTrueOrderByIdAsc(testId);
         return questions.stream()
-                .filter(Question::isActive)
                 .map(question -> applyLanguage(question, lang))
                 .toList();
     }
@@ -194,6 +193,7 @@ public class QuestionServiceImpl implements QuestionService {
         String hint = readString(row, columnMap, "hint");
         String hintHi = readString(row, columnMap, "hinthi");
         String topic = readString(row, columnMap, "topic");
+        String topicHi = readString(row, columnMap, "topichi");
 
         List<String> options = readOptions(row, columnMap, "option");
         List<String> optionsHi = readOptions(row, columnMap, "optionhi");
@@ -221,6 +221,7 @@ public class QuestionServiceImpl implements QuestionService {
                 .subject(subject)
                 .subjectHi(subjectHi)
                 .topic(topic)
+                .topicHi(topicHi)
                 .text(text)
                 .textHi(textHi)
                 .options(options)
@@ -358,6 +359,8 @@ public class QuestionServiceImpl implements QuestionService {
         Question question = Question.builder()
                 .subject(request.getSubject())
                 .subjectHi(request.getSubjectHi())
+            .topic(request.getTopic())
+            .topicHi(request.getTopicHi())
                 .text(request.getText())
                 .textHi(request.getTextHi())
                 .options(request.getOptions())
@@ -467,6 +470,7 @@ public class QuestionServiceImpl implements QuestionService {
 
         question.setText(LocalizedTextResolver.resolve(question.getText(), question.getTextHi(), lang));
         question.setSubject(LocalizedTextResolver.resolve(question.getSubject(), question.getSubjectHi(), lang));
+        question.setTopic(LocalizedTextResolver.resolve(question.getTopic(), question.getTopicHi(), lang));
         question.setExplanation(LocalizedTextResolver.resolve(question.getExplanation(), question.getExplanationHi(), lang));
         question.setHint(LocalizedTextResolver.resolve(question.getHint(), question.getHintHi(), lang));
         question.setOptions(LocalizedTextResolver.resolveList(question.getOptions(), question.getOptionsHi(), lang));

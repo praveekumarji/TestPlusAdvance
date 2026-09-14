@@ -21,6 +21,12 @@ public class UpdateQuestionRequest {
     private String subjectHi;
 
     @Size(min = 1)
+    private String topic;
+
+    @Size(min = 1)
+    private String topicHi;
+
+    @Size(min = 1)
     private String text;
 
     @Size(min = 1)

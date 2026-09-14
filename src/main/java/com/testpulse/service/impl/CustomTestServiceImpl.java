@@ -209,6 +209,8 @@ public class CustomTestServiceImpl implements CustomTestService {
                 .id(question.getId())
                 .testId(question.getTest() == null ? null : question.getTest().getId())
                 .subject(question.getSubject())
+                .topic(question.getTopic())
+                .topicHi(question.getTopicHi())
                 .text(question.getText())
                 .options(question.getOptions())
                 .correctOptionIndex(question.getCorrectOptionIndex())
@@ -226,6 +228,7 @@ public class CustomTestServiceImpl implements CustomTestService {
                 .subject(question.getSubject())
                 .subjectHi(question.getSubjectHi())
                 .topic(question.getTopic())
+                .topicHi(question.getTopicHi())
                 .text(hindi && question.getTextHi() != null ? question.getTextHi() : question.getText())
                 .textHi(question.getTextHi())
                 .options(hindi && question.getOptionsHi() != null ? question.getOptionsHi() : question.getOptions())
@@ -241,6 +244,7 @@ public class CustomTestServiceImpl implements CustomTestService {
     private Question applyLanguage(Question question, String lang) {
         question.setText(LocalizedTextResolver.resolve(question.getText(), question.getTextHi(), lang));
         question.setSubject(LocalizedTextResolver.resolve(question.getSubject(), question.getSubjectHi(), lang));
+        question.setTopic(LocalizedTextResolver.resolve(question.getTopic(), question.getTopicHi(), lang));
         question.setExplanation(LocalizedTextResolver.resolve(question.getExplanation(), question.getExplanationHi(), lang));
         question.setHint(LocalizedTextResolver.resolve(question.getHint(), question.getHintHi(), lang));
         question.setOptions(LocalizedTextResolver.resolveList(question.getOptions(), question.getOptionsHi(), lang));

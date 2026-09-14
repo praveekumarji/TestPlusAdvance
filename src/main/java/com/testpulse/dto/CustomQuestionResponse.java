@@ -17,6 +17,7 @@ public class CustomQuestionResponse {
     private String subject;
     private String subjectHi;
     private String topic;
+    private String topicHi;
     private String text;
     private String textHi;
     private List<String> options;
