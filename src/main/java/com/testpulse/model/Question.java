@@ -42,10 +42,12 @@ public class Question {
 
     @ElementCollection
     @CollectionTable(name = "question_options", joinColumns = @JoinColumn(name = "question_id"))
+    @OrderColumn(name = "option_order")
     private List<String> options;
 
     @ElementCollection
     @CollectionTable(name = "question_options_hi", joinColumns = @JoinColumn(name = "question_id"))
+    @OrderColumn(name = "option_order")
     private List<String> optionsHi;
 
     @Column(nullable = false)
