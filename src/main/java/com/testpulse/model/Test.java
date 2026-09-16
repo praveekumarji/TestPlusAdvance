@@ -59,5 +59,5 @@ public class Test {
     @Builder.Default
     private boolean active = true;
 
-    private int totalQuestions;
+    private long totalQuestions;
 }

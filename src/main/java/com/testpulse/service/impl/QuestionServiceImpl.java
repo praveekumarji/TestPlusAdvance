@@ -123,7 +123,8 @@ public class QuestionServiceImpl implements QuestionService {
 
         validateQuestion(existing);
         Question savedQuestion = questionRepository.save(existing);
-        evictQuestionCaches(Set.of(existing.getTest().getId()));
+        Long testId = existing.getTest().getId();
+        evictQuestionCaches(Set.of(testId));
         return savedQuestion;
     }
 
@@ -133,7 +134,8 @@ public class QuestionServiceImpl implements QuestionService {
                 .orElseThrow(() -> new RuntimeException("Question not found"));
         question.setActive(false);
         questionRepository.save(question);
-        evictQuestionCaches(Set.of(question.getTest().getId()));
+        Long testId = question.getTest().getId();
+        evictQuestionCaches(Set.of(testId));
     }
 
     @Override

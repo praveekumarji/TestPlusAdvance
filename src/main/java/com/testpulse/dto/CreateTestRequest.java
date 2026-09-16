@@ -39,5 +39,5 @@ public class CreateTestRequest {
     @Builder.Default
     private String testType = "FREE";
 
-    private int totalQuestions;
+    private Long totalQuestions;
 }

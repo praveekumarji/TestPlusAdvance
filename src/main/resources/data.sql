@@ -35,4 +35,7 @@ values('plan_annual',1),('prime_plan_annual',2);
 INSERT IGNORE INTO coupons (code, title, discount_type, discount_value, minimum_amount, valid_from, valid_to, is_active, max_uses, applicable_plan_id, created_at)
 VALUES
 ('WELCOME05', 'Welcome Offer', 'FIXED', 5, 0, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), true, 1000, null, NOW()),
-('TOPPER10', 'Welcome Offer', 'PERCENTAGE', 50, 25000, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY), true, 500, 'plan_annual', NOW())
+('TOPPER10', 'Welcome Offer', 'PERCENTAGE', 50, 25000, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY), true, 500, 'plan_annual', NOW());
+
+INSERT INTO `user` (`has_used_trial`, `is_email_verified`, `class_id`, `created_at`, `id`, `last_login_at`, `subscription_class_id`, `subscription_expiry`, `auth_provider`, `avatar_url`, `class1_subscription_status`, `class2_subscription_status`, `email`, `full_name`, `google_subject`, `mobile_number`, `password_hash`, `preferred_language`, `subscription_plan`, `target_exam`, `role`, `subscription_status`) VALUES
+(b'1', b'0', 2, '2026-09-14 16:20:43.000000', 1, NULL, NULL, '2026-09-17 16:20:43.000000', 'LOCAL', NULL, 'TRIAL', 'TRIAL', 'krpraveen1902@gmail.com', 'Praveen Kumar', NULL, '8757641080', '$2a$10$ysLZ1OGXvj791wNki58eLuLVWwPFjlV6udPwGtNNx5.LQOpjyFAcK', 'en', 'TRIAL_PLAN', NULL, 'ADMIN', 'TRIAL');

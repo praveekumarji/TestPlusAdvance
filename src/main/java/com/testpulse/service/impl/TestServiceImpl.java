@@ -163,6 +163,7 @@ public class TestServiceImpl implements TestService {
                 .mode(Modes.valueOf(request.getMode().trim().toUpperCase(Locale.ROOT)))
                 .difficulty(difficulty.valueOf(request.getDifficulty().trim().toUpperCase(Locale.ROOT)))
                 .testType(TestType.valueOf(normalizedTestType))
+                .totalQuestions(request.getTotalQuestions())
                 .educationClass(findActiveClass(request.getClassId()))
                 .build();
     }

@@ -20,5 +20,5 @@ public class TestResponse {
     private String testType;
     private Long classId;
     private String className;
-    private int totalQuestions;
+    private Long totalQuestions;
 }
