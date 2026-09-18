@@ -29,6 +29,18 @@ public class Test {
     @Column
     private String subjectHi;
 
+    @Column(name = "test_group")
+    private String group;
+
+    @Column
+    private String groupId;
+
+    @Column
+    private String groupIcon;
+
+    @Column
+    private Integer groupOrder;
+
     @Column(nullable = false)
     private String description;
 

@@ -157,6 +157,10 @@ public class TestServiceImpl implements TestService {
                 .titleHi(request.getTitleHi())
                 .subject(request.getSubject())
                 .subjectHi(request.getSubjectHi())
+                .group(request.getGroup())
+                .groupId(request.getGroupId())
+                .groupIcon(request.getGroupIcon())
+                .groupOrder(request.getGroupOrder())
                 .description(request.getDescription())
                 .descriptionHi(request.getDescriptionHi())
                 .durationMinutes(request.getDurationMinutes())
@@ -231,6 +235,18 @@ public class TestServiceImpl implements TestService {
         }
         if (testUpdate.getSubjectHi() != null) {
             existing.setSubjectHi(testUpdate.getSubjectHi());
+        }
+        if (testUpdate.getGroup() != null) {
+            existing.setGroup(testUpdate.getGroup());
+        }
+        if (testUpdate.getGroupId() != null) {
+            existing.setGroupId(testUpdate.getGroupId());
+        }
+        if (testUpdate.getGroupIcon() != null) {
+            existing.setGroupIcon(testUpdate.getGroupIcon());
+        }
+        if (testUpdate.getGroupOrder() != null) {
+            existing.setGroupOrder(testUpdate.getGroupOrder());
         }
         if (testUpdate.getDescription() != null && !testUpdate.getDescription().isBlank()) {
             existing.setDescription(testUpdate.getDescription());

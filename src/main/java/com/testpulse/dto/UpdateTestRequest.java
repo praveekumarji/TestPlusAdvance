@@ -24,6 +24,17 @@ public class UpdateTestRequest {
     private String subjectHi;
 
     @Size(min = 1)
+    private String group;
+
+    @Size(min = 1)
+    private String groupId;
+
+    @Size(min = 1)
+    private String groupIcon;
+
+    private Integer groupOrder;
+
+    @Size(min = 1)
     private String description;
 
     @Size(min = 1)

@@ -13,6 +13,10 @@ public class TestResponse {
     private Long id;
     private String title;
     private String subject;
+    private String group;
+    private String groupId;
+    private String groupIcon;
+    private Integer groupOrder;
     private String description;
     private String durationMinutes;
     private String mode;

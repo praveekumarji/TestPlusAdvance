@@ -21,6 +21,14 @@ public class CreateTestRequest {
 
     private String subjectHi;
 
+    private String group;
+
+    private String groupId;
+
+    private String groupIcon;
+
+    private Integer groupOrder;
+
     @NotBlank
     private String description;
 
