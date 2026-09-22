@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Delete your TestPulse account</title>
+    <style>
+        :root { font-family: Arial, sans-serif; color: #172033; background: #f4f7fb; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+        main { width: min(92%, 560px); margin: 32px 0; padding: 32px; background: #fff; border: 1px solid #dbe3ef; border-radius: 12px; box-shadow: 0 12px 35px rgba(23, 32, 51, .08); }
+        h1 { margin-top: 0; }
+        p { line-height: 1.6; color: #4b5563; }
+        label { display: block; margin: 24px 0 8px; font-weight: 700; }
+        input, button { box-sizing: border-box; width: 100%; padding: 13px 14px; border-radius: 6px; font-size: 1rem; }
+        input { border: 1px solid #aebbd0; }
+        button { margin-top: 16px; border: 0; background: #b42318; color: white; font-weight: 700; cursor: pointer; }
+        button:disabled { opacity: .6; cursor: wait; }
+        #message { margin-top: 18px; font-weight: 700; }
+        .fine-print { font-size: .9rem; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Request account deletion</h1>
+    <p>Enter the email address registered with TestPulse. We will verify the request and delete your account and associated personal data within 30 days, subject to data we must retain for legal, payment, or fraud-prevention purposes.</p>
+    <form id="deletion-form">
+        <label for="email">Email address</label>
+        <input id="email" name="email" type="email" autocomplete="email" required maxlength="255">
+        <button type="submit">Request account deletion</button>
+    </form>
+    <p id="message" role="status" aria-live="polite"></p>
+    <p class="fine-print">Need help? Email <a href="mailto:digitalbyteworks.support@gmail.com">digitalbyteworks.support@gmail.com</a> or message us on <a href="https://wa.me/919709026953" target="_blank" rel="noopener noreferrer">WhatsApp at +91 9709026953</a>.</p>
+</main>
+<script>
+    const form = document.getElementById('deletion-form');
+    const button = form.querySelector('button');
+    const message = document.getElementById('message');
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        message.textContent = '';
+        try {
+            const response = await fetch('/api/account-deletion/requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: document.getElementById('email').value })
+            });
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.message || body.error || 'Please enter a valid email address.');
+            message.textContent = body.message;
+            form.reset();
+        } catch (error) {
+            message.textContent = error.message;
+        } finally {
+            button.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>

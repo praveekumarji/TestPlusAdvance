@@ -29,6 +29,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/account-deletion.html").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/account-deletion/requests").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/account-deletion/requests", "/api/account-deletion/requests/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/account-deletion/requests/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/classes", "/api/classes/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/classes").hasRole("ADMIN")
                         .requestMatchers(
