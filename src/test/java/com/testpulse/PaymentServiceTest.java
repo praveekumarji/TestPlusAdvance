@@ -67,9 +67,9 @@ class PaymentServiceTest {
         assertEquals("PENDING", payment.getStatus().name());
         assertEquals("Premium Plan", payment.getPlanName());
 
-        paymentService.recordSuccess(payment.getId(), "rzp_123");
+            paymentService.recordSuccess(payment.getId(), "google-purchase-token");
         assertEquals("SUCCESS", paymentService.getPaymentById(payment.getId()).getStatus().name());
-        assertEquals("rzp_123", paymentService.getPaymentById(payment.getId()).getRazorpayPaymentId());
+            assertEquals("google-purchase-token", paymentService.getPaymentById(payment.getId()).getGooglePurchaseToken());
 
         paymentService.recordFailure(payment.getId(), "User cancelled during checkout");
         assertEquals("FAILED", paymentService.getPaymentById(payment.getId()).getStatus().name());

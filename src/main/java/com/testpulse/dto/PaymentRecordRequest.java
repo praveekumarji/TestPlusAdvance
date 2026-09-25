@@ -2,6 +2,7 @@ package com.testpulse.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -37,8 +38,14 @@ public class PaymentRecordRequest {
     @NotBlank
     private String paymentStatus;
 
-    private String razorpayPaymentId;
-    private String razorpayOrderId;
-    private String razorpaySignature;
+    private String paymentProvider;
+
+    @JsonAlias("purchaseToken")
+    private String googlePurchaseToken;
+
+    private String googleProductId;
+
+    @JsonAlias("googlePlayOrderId")
+    private String googleOrderId;
     private String errorMessage;
 }

@@ -33,6 +33,7 @@ class PaymentControllerRoutingTest {
 
         PaymentRecordRequest request = new PaymentRecordRequest();
         request.setUserId(2L);
+        request.setClassId(1);
         request.setPlanId("plan_annual");
         request.setDurationDays(210);
         request.setAmountInPaise(5900L);

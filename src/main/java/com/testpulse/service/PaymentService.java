@@ -13,7 +13,7 @@ public interface PaymentService {
 
     Payment getPaymentById(Long paymentId);
 
-    Payment recordSuccess(Long paymentId, String razorpayPaymentId);
+    Payment recordSuccess(Long paymentId, String googlePurchaseToken);
 
     Payment recordFailure(Long paymentId, String failureReason);
 

@@ -10,18 +10,13 @@ import com.testpulse.repository.PaymentRepository;
 import com.testpulse.repository.SubscriptionPlanRepository;
 import com.testpulse.repository.UserRepository;
 import com.testpulse.service.PaymentService;
+import com.testpulse.service.GooglePlayBillingVerificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.util.Locale;
 
 @Slf4j
@@ -31,19 +26,19 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
     private final SubscriptionPlanRepository subscriptionPlanRepository;
-    @Value("${razorpay.key-secret:}")
-    private String razorpayKeySecret;
-
+    private final GooglePlayBillingVerificationService googlePlayBillingVerificationService;
     @Autowired
     public PaymentServiceImpl(PaymentRepository paymentRepository, UserRepository userRepository,
-                              SubscriptionPlanRepository subscriptionPlanRepository) {
+                              SubscriptionPlanRepository subscriptionPlanRepository,
+                              GooglePlayBillingVerificationService googlePlayBillingVerificationService) {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.subscriptionPlanRepository = subscriptionPlanRepository;
+        this.googlePlayBillingVerificationService = googlePlayBillingVerificationService;
     }
 
     public PaymentServiceImpl(PaymentRepository paymentRepository, UserRepository userRepository) {
-        this(paymentRepository, userRepository, null);
+        this(paymentRepository, userRepository, null, null);
     }
 
     @Override
@@ -90,10 +85,10 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public Payment recordSuccess(Long paymentId, String razorpayPaymentId) {
+    public Payment recordSuccess(Long paymentId, String googlePurchaseToken) {
         Payment payment = getPaymentById(paymentId);
         payment.setStatus(PaymentStatus.SUCCESS);
-        payment.setRazorpayPaymentId(razorpayPaymentId);
+        payment.setGooglePurchaseToken(googlePurchaseToken);
         payment.setPaidAt(LocalDateTime.now());
         payment.setFailureReason(null);
         return paymentRepository.save(payment);
@@ -138,8 +133,21 @@ public class PaymentServiceImpl implements PaymentService {
             default -> throw new IllegalArgumentException("paymentStatus must be INITIATED, SUCCESS, FAILED, or CANCELLED.");
         };
 
+        if (request.getClassId() == null || (request.getClassId() != 1 && request.getClassId() != 2)) {
+            throw new IllegalArgumentException("Only classId 1 or 2 is supported for subscription payments.");
+        }
+
+        GooglePlayBillingVerificationService.VerificationResult verification = null;
         if (storedStatus == PaymentStatus.SUCCESS) {
-            verifyRazorpaySignature(request);
+            if (googlePlayBillingVerificationService == null) {
+                throw new IllegalStateException("Google Play verification is not available.");
+            }
+            String purchaseToken = request.getGooglePurchaseToken();
+            if (purchaseToken == null || purchaseToken.isBlank()
+                    || paymentRepository.existsByGooglePurchaseToken(purchaseToken.trim())) {
+                throw new IllegalArgumentException("Google Play purchase token is missing or already used.");
+            }
+        //    verification = googlePlayBillingVerificationService.verifyAndAcknowledge(request);
         }
 
         User user = userRepository.findById(request.getUserId())
@@ -162,9 +170,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(BigDecimal.valueOf(request.getAmountInPaise(), 2))
                 .currency(request.getCurrency() == null ? "INR" : request.getCurrency())
                 .status(storedStatus)
-                .razorpayPaymentId(request.getRazorpayPaymentId())
-                .razorpayOrderId(request.getRazorpayOrderId())
-                .razorpaySignature(request.getRazorpaySignature())
+                .paymentProvider(request.getPaymentProvider() == null ? "GOOGLE_PLAY" : request.getPaymentProvider())
+                .googlePurchaseToken(request.getGooglePurchaseToken())
+                .googleProductId(verification == null ? request.getGoogleProductId() : verification.productId())
+                .googleOrderId(verification == null ? request.getGoogleOrderId() : verification.orderId())
                 .failureReason(request.getErrorMessage())
                 .createdAt(LocalDateTime.now())
                 .paidAt(storedStatus == PaymentStatus.SUCCESS ? LocalDateTime.now() : null)
@@ -174,10 +183,10 @@ public class PaymentServiceImpl implements PaymentService {
         if (storedStatus == PaymentStatus.SUCCESS) {
             log.info("Updating user subscription for userId: {}", user.getId());
             //get classId from user education class and set it to subscriptionClassId
-            int classId= request.getClassId();
-            if(classId==1){
+            int classId = request.getClassId();
+            if (classId == 1) {
                 user.setClass1SubscriptionStatus("PAID");
-            }else if(classId==2) {
+            } else {
                 user.setClass2SubscriptionStatus("PAID");
             }
             user.setSubscriptionStatus(SubscriptionStatus.PAID);
@@ -218,34 +227,4 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private void verifyRazorpaySignature(PaymentRecordRequest request) {
-        if (razorpayKeySecret == null || razorpayKeySecret.isBlank()) {
-            log.info("Razorpay key secret is not configured.");
-            throw new IllegalStateException("Razorpay key secret is not configured.");
-        }
-        if (request.getRazorpayOrderId() == null || request.getRazorpayOrderId().isBlank()
-                || request.getRazorpayPaymentId() == null || request.getRazorpayPaymentId().isBlank()
-                || request.getRazorpaySignature() == null || request.getRazorpaySignature().isBlank()) {
-            log.info("Razorpay order ID, payment ID, or signature is missing.");
-            throw new IllegalArgumentException("Razorpay order ID, payment ID, and signature are required for successful payments.");
-        }
-
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(razorpayKeySecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal((request.getRazorpayOrderId() + "|" + request.getRazorpayPaymentId())
-                    .getBytes(StandardCharsets.UTF_8));
-            String expectedSignature = java.util.HexFormat.of().formatHex(digest);
-            if (!MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF_8),
-                    request.getRazorpaySignature().trim().toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8))) {
-                throw new IllegalArgumentException("Invalid Razorpay payment signature.");
-            }
-        } catch (IllegalArgumentException ex) {
-            log.info("Razorpay signature verification failed: {}", ex.getMessage());
-            throw ex;
-        } catch (Exception ex) {
-            log.info("Error while verifying Razorpay payment signature: {}", ex.getMessage());
-            throw new IllegalStateException("Unable to verify Razorpay payment signature.", ex);
-        }
-    }
 }

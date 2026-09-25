@@ -63,14 +63,17 @@ public class Payment {
     @Builder.Default
     private PaymentStatus status = PaymentStatus.PENDING;
 
-    @Column(name = "razorpay_payment_id")
-    private String razorpayPaymentId;
+    @Column(name = "payment_provider")
+    private String paymentProvider;
 
-    @Column(name = "razorpay_order_id")
-    private String razorpayOrderId;
+    @Column(name = "google_purchase_token", length = 2048)
+    private String googlePurchaseToken;
 
-    @Column(name = "razorpay_signature")
-    private String razorpaySignature;
+    @Column(name = "google_product_id")
+    private String googleProductId;
+
+    @Column(name = "google_order_id")
+    private String googleOrderId;
 
     @Column(name = "failure_reason")
     private String failureReason;

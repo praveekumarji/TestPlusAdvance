@@ -11,5 +11,5 @@ import lombok.NoArgsConstructor;
 @Builder
 public class PaymentSuccessRequest {
     private Long paymentId;
-    private String razorpayPaymentId;
+    private String googlePurchaseToken;
 }
