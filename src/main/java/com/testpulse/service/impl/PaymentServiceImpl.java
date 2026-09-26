@@ -120,7 +120,7 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Duration days must be greater than zero.");
         }
         if (request.getPlanId() == null || request.getPlanId().isBlank()) {
-            throw new IllegalArgumentException("Plan ID is required.");
+          //  throw new IllegalArgumentException("Plan ID is required.");
         }
 
         String requestedStatus = request.getPaymentStatus().trim().toUpperCase(Locale.ROOT);
@@ -152,7 +152,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
-        validatePlanForUser(user, request.getPlanId());
+      //  validatePlanForUser(user, request.getPlanId());
         log.info("Storing payment record for userId: {}, planId: {}, amountInPaise: {}, status: {}",
                 user.getId(), request.getPlanId(), request.getAmountInPaise(), storedStatus);
         Payment payment = Payment.builder()
