@@ -11,6 +11,7 @@ import com.testpulse.repository.SubscriptionPlanRepository;
 import com.testpulse.repository.UserRepository;
 import com.testpulse.service.PaymentService;
 import com.testpulse.service.GooglePlayBillingVerificationService;
+import com.testpulse.service.UserSubscriptionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,18 +28,27 @@ public class PaymentServiceImpl implements PaymentService {
     private final UserRepository userRepository;
     private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final GooglePlayBillingVerificationService googlePlayBillingVerificationService;
+    private final UserSubscriptionService userSubscriptionService;
     @Autowired
     public PaymentServiceImpl(PaymentRepository paymentRepository, UserRepository userRepository,
                               SubscriptionPlanRepository subscriptionPlanRepository,
-                              GooglePlayBillingVerificationService googlePlayBillingVerificationService) {
+                              GooglePlayBillingVerificationService googlePlayBillingVerificationService,
+                              UserSubscriptionService userSubscriptionService) {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.subscriptionPlanRepository = subscriptionPlanRepository;
         this.googlePlayBillingVerificationService = googlePlayBillingVerificationService;
+        this.userSubscriptionService = userSubscriptionService;
+    }
+
+    public PaymentServiceImpl(PaymentRepository paymentRepository, UserRepository userRepository,
+                              SubscriptionPlanRepository subscriptionPlanRepository,
+                              GooglePlayBillingVerificationService googlePlayBillingVerificationService) {
+        this(paymentRepository, userRepository, subscriptionPlanRepository, googlePlayBillingVerificationService, null);
     }
 
     public PaymentServiceImpl(PaymentRepository paymentRepository, UserRepository userRepository) {
-        this(paymentRepository, userRepository, null, null);
+        this(paymentRepository, userRepository, null, null, null);
     }
 
     @Override
@@ -133,8 +143,8 @@ public class PaymentServiceImpl implements PaymentService {
             default -> throw new IllegalArgumentException("paymentStatus must be INITIATED, SUCCESS, FAILED, or CANCELLED.");
         };
 
-        if (request.getClassId() == null || (request.getClassId() != 1 && request.getClassId() != 2)) {
-            throw new IllegalArgumentException("Only classId 1 or 2 is supported for subscription payments.");
+        if (request.getClassId() == null) {
+            throw new IllegalArgumentException("Class ID is required for subscription payments.");
         }
 
         GooglePlayBillingVerificationService.VerificationResult verification = null;
@@ -152,7 +162,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
-      //  validatePlanForUser(user, request.getPlanId());
+                validatePlanForClass(request.getPlanId(), request.getClassId().longValue());
         log.info("Storing payment record for userId: {}, planId: {}, amountInPaise: {}, status: {}",
                 user.getId(), request.getPlanId(), request.getAmountInPaise(), storedStatus);
         Payment payment = Payment.builder()
@@ -162,6 +172,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .planId(request.getPlanId())
                 .planCode(request.getPlanCode())
                 .planTitle(request.getPlanTitle())
+                .classId(request.getClassId().longValue())
                 .durationDays(request.getDurationDays())
                 .originalAmountInPaise(request.getOriginalAmountInPaise())
                 .discountAmountInPaise(request.getDiscountAmountInPaise())
@@ -182,17 +193,21 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Payment record stored successfully for userId: {}, paymentId: {}", user.getId(), payment.getId());
         if (storedStatus == PaymentStatus.SUCCESS) {
             log.info("Updating user subscription for userId: {}", user.getId());
-            //get classId from user education class and set it to subscriptionClassId
-            int classId = request.getClassId();
-            if (classId == 1) {
+            Long classId = request.getClassId().longValue();
+            String planCode = request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode();
+            if (userSubscriptionService != null) {
+                userSubscriptionService.activate(user, classId, request.getPlanId(), planCode,
+                        request.getDurationDays(), SubscriptionStatus.PAID);
+            }
+            if (classId == 1L) {
                 user.setClass1SubscriptionStatus("PAID");
-            } else {
+            } else if (classId == 2L) {
                 user.setClass2SubscriptionStatus("PAID");
             }
             user.setSubscriptionStatus(SubscriptionStatus.PAID);
-            user.setSubscriptionClassId(user.getEducationClass() == null ? null : user.getEducationClass().getId());
+            user.setSubscriptionClassId(classId);
             log.info("seting user subscription status to PAID for userId: {}", user.getId());
-            user.setSubscriptionPlan(request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode());
+            user.setSubscriptionPlan(planCode);
             user.setSubscriptionExpiry(LocalDateTime.now().plusDays(request.getDurationDays()));
             userRepository.save(user);
             log.info("User subscription updated successfully for userId: {}", user.getId());
@@ -204,27 +219,34 @@ public class PaymentServiceImpl implements PaymentService {
                 .paymentStatus(requestedStatus)
                 .user(PaymentRecordResponse.UserSubscriptionResponse.builder()
                         .id(user.getId())
-                        .subscriptionStatus(user.getEffectiveSubscriptionStatus().name())
-                        .subscriptionPlan(user.getSubscriptionPlan())
+                    .subscriptionStatus(storedStatus == PaymentStatus.SUCCESS
+                        ? SubscriptionStatus.PAID.name() : user.getEffectiveSubscriptionStatus().name())
+                    .subscriptionPlan(storedStatus == PaymentStatus.SUCCESS
+                        ? (request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode())
+                        : user.getSubscriptionPlan())
                         .build())
                 .build();
     }
 
-    private void validatePlanForUser(User user, String planId) {
+    private void validatePlanForClass(String planId, Long classId) {
         if (planId == null || planId.isBlank() || subscriptionPlanRepository == null) {
             return;
         }
 
         com.testpulse.model.SubscriptionPlan plan = subscriptionPlanRepository.findById(planId)
                 .orElseThrow(() -> new IllegalArgumentException("Subscription plan not found."));
+        boolean supported = plan.getEducationClasses().stream()
+                .anyMatch(educationClass -> educationClass.getId().equals(classId));
+        if (!supported) {
+            throw new IllegalArgumentException("This subscription plan is not available for the selected class.");
+        }
+    }
+
+    private void validatePlanForUser(User user, String planId) {
         if (user == null || user.getEducationClass() == null) {
             return;
         }
-        boolean supported = plan.getEducationClasses().stream()
-                .anyMatch(educationClass -> educationClass.getId().equals(user.getEducationClass().getId()));
-        if (!supported) {
-            throw new IllegalArgumentException("This subscription plan is not available for the user's class.");
-        }
+        validatePlanForClass(planId, user.getEducationClass().getId());
     }
 
 }

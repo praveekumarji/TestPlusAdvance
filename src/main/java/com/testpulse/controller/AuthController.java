@@ -126,7 +126,6 @@ public class AuthController {
         try {
             Optional<User> user = userService.login(mobileNumber, password);
             if (user.isPresent()) {
-                checkAndSetSubscriptionStatus(user.get());
                 String token = jwtUtil.generateToken(user.get().getId(), user.get().getMobileNumber(), user.get().getRole().name());
                 return ResponseEntity.ok(AuthResponse.builder()
                     .success(true)
@@ -139,15 +138,6 @@ public class AuthController {
             return ResponseEntity.status(401).body("Invalid email/mobile number or password.");
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body(ex.getMessage());
-        }
-    }
-
-    private void checkAndSetSubscriptionStatus(User user) {
-        int id = Math.toIntExact(user.getEducationClass().getId());
-        if(id==1){
-            user.setSubscriptionStatus(user.getClass1SubscriptionStatus() == null ? SubscriptionStatus.FREE : SubscriptionStatus.valueOf(user.getClass1SubscriptionStatus()));
-        }else{
-            user.setSubscriptionStatus(user.getClass2SubscriptionStatus() == null ? SubscriptionStatus.FREE : SubscriptionStatus.valueOf(user.getClass2SubscriptionStatus()));
         }
     }
 

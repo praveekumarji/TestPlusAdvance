@@ -8,6 +8,7 @@ import com.testpulse.model.TrialDevice;
 import com.testpulse.model.EducationClass;
 import com.testpulse.repository.EducationClassRepository;
 import com.testpulse.service.UserService;
+import com.testpulse.service.UserSubscriptionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -29,6 +30,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final TrialDeviceRepository trialDeviceRepository;
     private final EducationClassRepository educationClassRepository;
+    private final UserSubscriptionService userSubscriptionService;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final int trialDurationDays;
 
@@ -36,15 +38,17 @@ public class UserServiceImpl implements UserService {
     public UserServiceImpl(UserRepository userRepository,
                            TrialDeviceRepository trialDeviceRepository,
                            EducationClassRepository educationClassRepository,
+                           UserSubscriptionService userSubscriptionService,
                            @Value("${subscription.trial-days:3}") int trialDurationDays) {
         this.userRepository = userRepository;
         this.trialDeviceRepository = trialDeviceRepository;
         this.educationClassRepository = educationClassRepository;
+        this.userSubscriptionService = userSubscriptionService;
         this.trialDurationDays = trialDurationDays;
     }
 
     public UserServiceImpl(UserRepository userRepository) {
-        this(userRepository, null, null, 3);
+        this(userRepository, null, null, null, 3);
     }
 
     @Override
@@ -113,6 +117,10 @@ public class UserServiceImpl implements UserService {
                 return userRepository.save(savedUser);
             }
         }
+        if (trialAvailable && savedUser.getEducationClass() != null && userSubscriptionService != null) {
+            userSubscriptionService.activate(savedUser, savedUser.getEducationClass().getId(), null,
+                    savedUser.getSubscriptionPlan(), trialDurationDays, SubscriptionStatus.TRIAL);
+        }
         return savedUser;
     }
 
@@ -123,7 +131,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Optional<User> findByEmail(String email) {
-        return userRepository.findByEmail(normalizeEmail(email)).map(this::expireSubscriptionIfNeeded);
+        return userRepository.findByEmail(normalizeEmail(email)).map(this::resolveSubscription);
     }
 
     @Override
@@ -136,12 +144,12 @@ public class UserServiceImpl implements UserService {
     @Override
     public Optional<User> findByMobileNumber(String mobileNumber) {
         return userRepository.findByMobileNumber(normalizeMobileNumber(mobileNumber))
-            .map(this::expireSubscriptionIfNeeded);
+            .map(this::resolveSubscription);
     }
 
     @Override
     public Optional<User> findById(Long id) {
-        return userRepository.findById(id).map(this::expireSubscriptionIfNeeded);
+        return userRepository.findById(id).map(this::resolveSubscription);
     }
 
     @Override
@@ -150,7 +158,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         user.setPreferredLanguage(normalizeLanguage(language));
-        return userRepository.save(user);
+        return resolveSubscription(userRepository.save(user));
     }
 
     @Override
@@ -166,7 +174,7 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setMobileNumber(normalizedMobile);
-        return userRepository.save(user);
+        return resolveSubscription(userRepository.save(user));
     }
 
     @Override
@@ -205,7 +213,7 @@ public class UserServiceImpl implements UserService {
             user.setEducationClass(findActiveClass(classId));
         }
 
-        return userRepository.save(user);
+        return resolveSubscription(userRepository.save(user));
     }
 
     @Override
@@ -214,7 +222,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         user.setEducationClass(findActiveClass(classId));
-        return userRepository.save(user);
+        return resolveSubscription(userRepository.save(user));
     }
 
     private EducationClass findActiveClass(Long classId) {
@@ -250,6 +258,9 @@ public class UserServiceImpl implements UserService {
             user.setSubscriptionClassId(null);
         }
         user.setSubscriptionStatus(status == null ? SubscriptionStatus.FREE : status);
+        if (userSubscriptionService != null) {
+            userSubscriptionService.syncStatusFromLegacy(user, user.getSubscriptionStatus());
+        }
         log.info("Updated subscription status for userId: {}, new status: {}", userId, user.getSubscriptionStatus());
         return userRepository.save(user);
     }
@@ -288,7 +299,7 @@ public class UserServiceImpl implements UserService {
                 .filter(user -> user.getPasswordHash() != null &&
                         (passwordEncoder.matches(password, user.getPasswordHash()) ||
                                 user.getPasswordHash().equals(password)))
-                .map(this::expireSubscriptionIfNeeded);
+                .map(this::resolveSubscription);
         if (userByMobile.isPresent()) {
             return userByMobile;
         }
@@ -302,28 +313,19 @@ public class UserServiceImpl implements UserService {
                 .filter(user -> user.getPasswordHash() != null &&
                         (passwordEncoder.matches(password, user.getPasswordHash()) ||
                                 user.getPasswordHash().equals(password)))
-                .map(this::expireSubscriptionIfNeeded);
+                .map(this::resolveSubscription);
     }
 
-            private User expireSubscriptionIfNeeded(User user) {
-            boolean activeSubscription = user.getSubscriptionStatus() == SubscriptionStatus.TRIAL;
-            int classid= Math.toIntExact(user.getEducationClass().getId());
-            if(1==classid){
-                activeSubscription = user.getClass1SubscriptionStatus().equals("TRIAL");
-            }else if (2==classid){
-                activeSubscription = user.getClass2SubscriptionStatus().equals("TRIAL");
-            }
-
-            if (activeSubscription
-                && user.getSubscriptionExpiry() != null
-                && !user.getSubscriptionExpiry().isAfter(LocalDateTime.now())) {
+    private User resolveSubscription(User user) {
+        if (userSubscriptionService != null) {
+            return userSubscriptionService.resolvePrimaryClassSubscription(user);
+        }
+        if (user.getSubscriptionExpiry() != null
+                && !user.getSubscriptionExpiry().isAfter(LocalDateTime.now())
+                && (user.getSubscriptionStatus() == SubscriptionStatus.TRIAL
+                || user.getSubscriptionStatus() == SubscriptionStatus.PAID
+                || user.getSubscriptionStatus() == SubscriptionStatus.PRIME)) {
             user.setSubscriptionStatus(SubscriptionStatus.FREE);
-            if(classid==1){
-                user.setClass1SubscriptionStatus(SUBSCRIPTION_FREE);
-            }else if(classid==2) {
-                user.setClass2SubscriptionStatus(SUBSCRIPTION_FREE);
-            }
-            userRepository.save(user);
         }
         return user;
     }

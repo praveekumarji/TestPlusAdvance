@@ -37,6 +37,9 @@ public class Payment {
     @Column(name = "plan_title")
     private String planTitle;
 
+    @Column(name = "class_id")
+    private Long classId;
+
     @Column(name = "duration_days")
     private Integer durationDays;
 

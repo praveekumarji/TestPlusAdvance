@@ -10,6 +10,7 @@ import com.testpulse.model.TrialDevice;
 import com.testpulse.model.User;
 import com.testpulse.repository.TrialDeviceRepository;
 import com.testpulse.repository.UserRepository;
+import com.testpulse.service.UserSubscriptionService;
 import com.testpulse.util.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +41,7 @@ public class GoogleAuthService {
     private final PasswordEncoder passwordEncoder;
     private final WelcomeEmailService welcomeEmailService;
     private final JwtUtil jwtUtil;
+    private final UserSubscriptionService userSubscriptionService;
     private final int trialDurationDays;
 
     public GoogleAuthService(UserRepository userRepository,
@@ -47,6 +49,7 @@ public class GoogleAuthService {
                              PasswordEncoder passwordEncoder,
                              WelcomeEmailService welcomeEmailService,
                              JwtUtil jwtUtil,
+                             UserSubscriptionService userSubscriptionService,
                              @Value("${subscription.trial-days:3}") int trialDurationDays) {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(java.time.Duration.ofSeconds(5))
@@ -56,6 +59,7 @@ public class GoogleAuthService {
         this.passwordEncoder = passwordEncoder;
         this.welcomeEmailService = welcomeEmailService;
         this.jwtUtil = jwtUtil;
+        this.userSubscriptionService = userSubscriptionService;
         this.trialDurationDays = trialDurationDays;
     }
 
@@ -221,6 +225,10 @@ public class GoogleAuthService {
     }
 
     private void expireSubscriptionIfNeeded(User user) {
+        if (userSubscriptionService != null) {
+            userSubscriptionService.resolvePrimaryClassSubscription(user);
+            return;
+        }
         boolean activeSubscription = user.getSubscriptionStatus() == SubscriptionStatus.TRIAL
                 || user.getSubscriptionStatus() == SubscriptionStatus.PAID
                 || user.getSubscriptionStatus() == SubscriptionStatus.PRIME;
