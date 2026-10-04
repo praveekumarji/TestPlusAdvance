@@ -246,6 +246,8 @@ public class GoogleAuthService {
                 .email(user.getEmail())
                 .mobileNumber(user.getMobileNumber())
                 .fullName(user.getFullName())
+                .classId(user.getEducationClass() == null ? null : user.getEducationClass().getId())
+                .className(user.getEducationClass() == null ? null : user.getEducationClass().getName())
                 .preferredLanguage(user.getPreferredLanguage())
                 .subscriptionStatus(user.getEffectiveSubscriptionStatus())
                 .subscriptionPlan(user.getSubscriptionPlan())
