@@ -10,10 +10,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class PaymentControllerRoutingTest {
@@ -24,8 +27,22 @@ class PaymentControllerRoutingTest {
         when(paymentService.recordPayment(any(PaymentRecordRequest.class)))
                 .thenReturn(PaymentRecordResponse.builder()
                         .success(true)
-                        .message("Payment recorded successfully")
-                        .paymentStatus("SUCCESS")
+                        .message("Payment verified and subscription activated successfully")
+                        .subscriptionStatus("PAID")
+                        .user(PaymentRecordResponse.UserSubscriptionResponse.builder()
+                                .id(2L)
+                                .email("rahul@example.com")
+                                .fullName("Rahul Sharma")
+                                .mobileNumber("9876543210")
+                                .classId(1L)
+                                .className("BIHAR BOARD 10")
+                                .subscriptionStatus("PAID")
+                                .subscriptionPlan("Class 10th Full Access Pass")
+                                .subscriptionExpiry("2027-10-04T23:59:59Z")
+                                .paidClassIds(List.of(1L))
+                                .hasUsedTrial(true)
+                                .role("USER")
+                                .build())
                         .build());
 
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PaymentController(paymentService)).build();
@@ -42,6 +59,23 @@ class PaymentControllerRoutingTest {
         mockMvc.perform(post("/api/payment/records-success")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.message").value("Payment verified and subscription activated successfully"))
+                .andExpect(jsonPath("$.subscriptionStatus").value("PAID"))
+                .andExpect(jsonPath("$.user.id").value(2))
+                                .andExpect(jsonPath("$.user.email").value("rahul@example.com"))
+                                .andExpect(jsonPath("$.user.fullName").value("Rahul Sharma"))
+                .andExpect(jsonPath("$.user.mobileNumber").value("9876543210"))
+                .andExpect(jsonPath("$.user.classId").value(1))
+                .andExpect(jsonPath("$.user.className").value("BIHAR BOARD 10"))
+                .andExpect(jsonPath("$.user.subscriptionStatus").value("PAID"))
+                                .andExpect(jsonPath("$.user.subscriptionPlan").value("Class 10th Full Access Pass"))
+                                .andExpect(jsonPath("$.user.subscriptionExpiry").value("2027-10-04T23:59:59Z"))
+                                .andExpect(jsonPath("$.user.paidClassIds[0]").value(1))
+                .andExpect(jsonPath("$.user.hasUsedTrial").value(true))
+                .andExpect(jsonPath("$.user.role").value("USER"))
+                                .andExpect(jsonPath("$.paymentStatus").doesNotExist())
+                                .andExpect(jsonPath("$.userDetails").doesNotExist());
     }
 }

@@ -4,6 +4,7 @@ import com.testpulse.model.Payment;
 import com.testpulse.model.PaymentStatus;
 import com.testpulse.model.SubscriptionStatus;
 import com.testpulse.model.User;
+import com.testpulse.model.UserSubscription;
 import com.testpulse.dto.PaymentRecordRequest;
 import com.testpulse.dto.PaymentRecordResponse;
 import com.testpulse.repository.PaymentRepository;
@@ -18,6 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Slf4j
@@ -191,12 +197,13 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
         paymentRepository.save(payment);
         log.info("Payment record stored successfully for userId: {}, paymentId: {}", user.getId(), payment.getId());
+        UserSubscription activatedSubscription = null;
         if (storedStatus == PaymentStatus.SUCCESS) {
             log.info("Updating user subscription for userId: {}", user.getId());
             Long classId = request.getClassId().longValue();
             String planCode = request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode();
             if (userSubscriptionService != null) {
-                userSubscriptionService.activate(user, classId, request.getPlanId(), planCode,
+            activatedSubscription = userSubscriptionService.activate(user, classId, request.getPlanId(), planCode,
                         request.getDurationDays(), SubscriptionStatus.PAID);
             }
             if (classId == 1L) {
@@ -213,20 +220,61 @@ public class PaymentServiceImpl implements PaymentService {
             log.info("User subscription updated successfully for userId: {}", user.getId());
         }
 
+            Long responseClassId = storedStatus == PaymentStatus.SUCCESS
+                ? request.getClassId().longValue() : user.getSubscriptionClassId();
+            String responseClassName = activatedSubscription != null
+                ? activatedSubscription.getEducationClass().getName()
+                : user.getEducationClass() != null && user.getEducationClass().getId().equals(responseClassId)
+                    ? user.getEducationClass().getName() : null;
+            List<Long> paidClassIds = userSubscriptionService == null
+                ? new ArrayList<>() : new ArrayList<>(userSubscriptionService.getPaidClassIds(user.getId()));
+            if (storedStatus == PaymentStatus.SUCCESS && !paidClassIds.contains(responseClassId)) {
+                paidClassIds.add(responseClassId);
+            }
+            String responsePlan = storedStatus == PaymentStatus.SUCCESS
+                ? getPlanDisplayName(request) : user.getSubscriptionPlan();
+
         return PaymentRecordResponse.builder()
                 .success(true)
-                .message("Payment record stored successfully")
-                .paymentStatus(requestedStatus)
+                .message(storedStatus == PaymentStatus.SUCCESS
+                    ? "Payment verified and subscription activated successfully"
+                    : "Payment record stored successfully")
+                .subscriptionStatus(storedStatus == PaymentStatus.SUCCESS
+                    ? SubscriptionStatus.PAID.name() : user.getEffectiveSubscriptionStatus().name())
                 .user(PaymentRecordResponse.UserSubscriptionResponse.builder()
                         .id(user.getId())
+                    .email(user.getEmail())
+                    .fullName(user.getFullName())
+                    .mobileNumber(user.getMobileNumber())
+                    .classId(responseClassId)
+                    .className(responseClassName)
                     .subscriptionStatus(storedStatus == PaymentStatus.SUCCESS
                         ? SubscriptionStatus.PAID.name() : user.getEffectiveSubscriptionStatus().name())
-                    .subscriptionPlan(storedStatus == PaymentStatus.SUCCESS
-                        ? (request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode())
-                        : user.getSubscriptionPlan())
+                    .subscriptionPlan(responsePlan)
+                    .subscriptionExpiry(formatUtc(user.getSubscriptionExpiry()))
+                    .paidClassIds(paidClassIds)
+                    .hasUsedTrial(user.isHasUsedTrial())
+                    .role(user.getRole() == null ? null : user.getRole().name())
                         .build())
                 .build();
     }
+
+            private String getPlanDisplayName(PaymentRecordRequest request) {
+            if (request.getPlanTitle() != null && !request.getPlanTitle().isBlank()) {
+                return request.getPlanTitle();
+            }
+            if (subscriptionPlanRepository != null && request.getPlanId() != null && !request.getPlanId().isBlank()) {
+                return subscriptionPlanRepository.findById(request.getPlanId())
+                    .map(plan -> plan.getTitle())
+                    .orElse(request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode());
+            }
+            return request.getPlanCode() == null ? request.getPlanId() : request.getPlanCode();
+            }
+
+            private String formatUtc(LocalDateTime dateTime) {
+            return dateTime == null ? null : DateTimeFormatter.ISO_INSTANT.format(
+                dateTime.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toInstant());
+            }
 
     private void validatePlanForClass(String planId, Long classId) {
         if (planId == null || planId.isBlank() || subscriptionPlanRepository == null) {

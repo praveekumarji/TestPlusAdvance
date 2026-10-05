@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -44,6 +45,18 @@ public class UserSubscriptionService {
         subscription.setStartedAt(startsAt);
         subscription.setExpiresAt(startsAt.plusDays(durationDays));
         return userSubscriptionRepository.save(subscription);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getPaidClassIds(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        return userSubscriptionRepository.findByUser_IdAndStatus(userId, SubscriptionStatus.PAID).stream()
+                .filter(subscription -> subscription.getExpiresAt() == null
+                        || subscription.getExpiresAt().isAfter(now))
+                .map(subscription -> subscription.getEducationClass().getId())
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     @Transactional
