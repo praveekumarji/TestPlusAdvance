@@ -5,14 +5,18 @@ import com.testpulse.controller.PaymentController;
 import com.testpulse.dto.PaymentRecordRequest;
 import com.testpulse.dto.PaymentRecordResponse;
 import com.testpulse.service.PaymentService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -21,10 +25,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class PaymentControllerRoutingTest {
 
+        @AfterEach
+        void clearSecurityContext() {
+                SecurityContextHolder.clearContext();
+        }
+
     @Test
     void shouldAcceptRecordsSuccessRoute() throws Exception {
         PaymentService paymentService = mock(PaymentService.class);
-        when(paymentService.recordPayment(any(PaymentRecordRequest.class)))
+        when(paymentService.recordPayment(any(PaymentRecordRequest.class), eq(2L)))
                 .thenReturn(PaymentRecordResponse.builder()
                         .success(true)
                         .message("Payment verified and subscription activated successfully")
@@ -50,11 +59,14 @@ class PaymentControllerRoutingTest {
 
         PaymentRecordRequest request = new PaymentRecordRequest();
         request.setUserId(2L);
+        request.setUserEmail("rahul@example.com");
         request.setClassId(1);
         request.setPlanId("plan_annual");
         request.setDurationDays(210);
         request.setAmountInPaise(5900L);
         request.setPaymentStatus("SUCCESS");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("2", null, List.of()));
 
         mockMvc.perform(post("/api/payment/records-success")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -78,4 +90,26 @@ class PaymentControllerRoutingTest {
                                 .andExpect(jsonPath("$.paymentStatus").doesNotExist())
                                 .andExpect(jsonPath("$.userDetails").doesNotExist());
     }
+
+        @Test
+        void shouldRejectPaymentRecordForDifferentAuthenticatedUser() throws Exception {
+                PaymentService paymentService = mock(PaymentService.class);
+                MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PaymentController(paymentService)).build();
+                ObjectMapper objectMapper = new ObjectMapper();
+
+                PaymentRecordRequest request = new PaymentRecordRequest();
+                request.setUserId(99L);
+                request.setClassId(1);
+                request.setPlanId("plan_annual");
+                request.setDurationDays(210);
+                request.setAmountInPaise(5900L);
+                request.setPaymentStatus("SUCCESS");
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken("2", null, List.of()));
+
+                mockMvc.perform(post("/api/payment/records-success")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isForbidden());
+        }
 }

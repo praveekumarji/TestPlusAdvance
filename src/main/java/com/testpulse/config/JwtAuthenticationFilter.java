@@ -6,7 +6,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -36,9 +35,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 var claims = jwtUtil.parseToken(token);
                 String role = claims.get("role", String.class);
-                var auth = new UsernamePasswordAuthenticationToken(
+                var auth = new JwtAuthenticationToken(
                         claims.getSubject(),
-                        null,
                         role == null ? Collections.emptyList() : List.of(new SimpleGrantedAuthority("ROLE_" + role))
                 );
                 SecurityContextHolder.getContext().setAuthentication(auth);

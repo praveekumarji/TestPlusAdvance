@@ -7,6 +7,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -35,6 +36,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/account-deletion/requests/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/classes", "/api/classes/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/classes").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST,
+                            "/api/payment/initiate",
+                            "/api/payment/record-success",
+                            "/api/payment/records-success",
+                            "/api/payment/records")
+                        .access((authentication, context) -> {
+                            var currentAuthentication = authentication.get();
+                            return new AuthorizationDecision(currentAuthentication instanceof JwtAuthenticationToken
+                                    && currentAuthentication.isAuthenticated());
+                        })
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/tests/**",

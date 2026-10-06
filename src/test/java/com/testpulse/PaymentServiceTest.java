@@ -1,5 +1,6 @@
 package com.testpulse;
 
+import com.testpulse.dto.PaymentRecordRequest;
 import com.testpulse.model.Payment;
 import com.testpulse.model.User;
 import com.testpulse.repository.PaymentRepository;
@@ -7,6 +8,7 @@ import com.testpulse.repository.UserRepository;
 import com.testpulse.service.PaymentService;
 import com.testpulse.service.impl.PaymentServiceImpl;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
@@ -17,6 +19,9 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class PaymentServiceTest {
 
@@ -74,5 +79,30 @@ class PaymentServiceTest {
         paymentService.recordFailure(payment.getId(), "User cancelled during checkout");
         assertEquals("FAILED", paymentService.getPaymentById(payment.getId()).getStatus().name());
         assertEquals("User cancelled during checkout", paymentService.getPaymentById(payment.getId()).getFailureReason());
+    }
+
+    @Test
+    void shouldRejectPaymentRecordWhenEmailDoesNotMatchAuthenticatedUser() {
+        User user = User.builder()
+                .id(42L)
+                .email("student@example.com")
+                .fullName("Demo User")
+                .passwordHash("hash")
+                .createdAt(LocalDateTime.now())
+                .build();
+        UserRepository userRepository = mock(UserRepository.class);
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+
+        PaymentService paymentService = new PaymentServiceImpl(mock(PaymentRepository.class), userRepository);
+        PaymentRecordRequest request = new PaymentRecordRequest();
+        request.setUserId(42L);
+        request.setUserEmail("someone-else@example.com");
+        request.setClassId(1);
+        request.setPlanId("plan_annual");
+        request.setDurationDays(210);
+        request.setAmountInPaise(5900L);
+        request.setPaymentStatus("INITIATED");
+
+        assertThrows(AccessDeniedException.class, () -> paymentService.recordPayment(request, 42L));
     }
 }

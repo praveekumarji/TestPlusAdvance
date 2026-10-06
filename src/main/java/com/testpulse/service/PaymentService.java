@@ -17,5 +17,5 @@ public interface PaymentService {
 
     Payment recordFailure(Long paymentId, String failureReason);
 
-    PaymentRecordResponse recordPayment(PaymentRecordRequest request);
+    PaymentRecordResponse recordPayment(PaymentRecordRequest request, Long authenticatedUserId);
 }

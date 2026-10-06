@@ -15,6 +15,7 @@ import com.testpulse.service.GooglePlayBillingVerificationService;
 import com.testpulse.service.UserSubscriptionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -124,10 +125,13 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentRecordResponse recordPayment(PaymentRecordRequest request) {
+    public PaymentRecordResponse recordPayment(PaymentRecordRequest request, Long authenticatedUserId) {
         log.info("Recording payment: {}", request);
         if (request == null || request.getUserId() == null) {
             throw new IllegalArgumentException("User ID is required.");
+        }
+        if (authenticatedUserId == null || !authenticatedUserId.equals(request.getUserId())) {
+            throw new AccessDeniedException("User ID does not match the authenticated user.");
         }
         if (request.getAmountInPaise() == null || request.getAmountInPaise() <= 0) {
             throw new IllegalArgumentException("Amount must be greater than zero.");
@@ -166,8 +170,13 @@ public class PaymentServiceImpl implements PaymentService {
         //    verification = googlePlayBillingVerificationService.verifyAndAcknowledge(request);
         }
 
-        User user = userRepository.findById(request.getUserId())
+        User user = userRepository.findById(authenticatedUserId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
+        if (request.getUserEmail() != null && !request.getUserEmail().isBlank()
+            && (user.getEmail() == null
+            || !user.getEmail().trim().equalsIgnoreCase(request.getUserEmail().trim()))) {
+            throw new AccessDeniedException("Email does not match the authenticated user's account.");
+        }
                 validatePlanForClass(request.getPlanId(), request.getClassId().longValue());
         log.info("Storing payment record for userId: {}, planId: {}, amountInPaise: {}, status: {}",
                 user.getId(), request.getPlanId(), request.getAmountInPaise(), storedStatus);
