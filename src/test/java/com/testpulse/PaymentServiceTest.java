@@ -1,6 +1,8 @@
 package com.testpulse;
 
 import com.testpulse.dto.PaymentRecordRequest;
+import com.testpulse.dto.PaymentRecordResponse;
+import com.testpulse.model.EducationClass;
 import com.testpulse.model.Payment;
 import com.testpulse.model.User;
 import com.testpulse.repository.PaymentRepository;
@@ -19,6 +21,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -104,5 +107,38 @@ class PaymentServiceTest {
         request.setPaymentStatus("INITIATED");
 
         assertThrows(AccessDeniedException.class, () -> paymentService.recordPayment(request, 42L));
+    }
+
+    @Test
+    void shouldAllowInitiatedPaymentWhenUserHasNoSubscriptionClass() {
+        User user = User.builder()
+                .id(42L)
+                .email("student@example.com")
+                .fullName("Demo User")
+                .passwordHash("hash")
+                .createdAt(LocalDateTime.now())
+                .educationClass(EducationClass.builder().name("Class 1").build())
+                .subscriptionClassId(null)
+                .build();
+        UserRepository userRepository = mock(UserRepository.class);
+        PaymentRepository paymentRepository = mock(PaymentRepository.class);
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(paymentRepository.save(org.mockito.ArgumentMatchers.any(Payment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentService paymentService = new PaymentServiceImpl(paymentRepository, userRepository);
+        PaymentRecordRequest request = new PaymentRecordRequest();
+        request.setUserId(42L);
+        request.setClassId(1);
+        request.setPlanId("plan_annual");
+        request.setDurationDays(210);
+        request.setAmountInPaise(5900L);
+        request.setPaymentStatus("INITIATED");
+
+        PaymentRecordResponse response = paymentService.recordPayment(request, 42L);
+
+        assertNotNull(response);
+        assertNull(response.getUser().getClassId());
+        assertNull(response.getUser().getClassName());
     }
 }

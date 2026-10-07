@@ -26,6 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -230,10 +231,11 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
             Long responseClassId = storedStatus == PaymentStatus.SUCCESS
-                ? request.getClassId().longValue() : user.getSubscriptionClassId();
+                ? Long.valueOf(request.getClassId().longValue()) : user.getSubscriptionClassId();
             String responseClassName = activatedSubscription != null
                 ? activatedSubscription.getEducationClass().getName()
-                : user.getEducationClass() != null && user.getEducationClass().getId().equals(responseClassId)
+                : responseClassId != null && user.getEducationClass() != null
+                    && Objects.equals(user.getEducationClass().getId(), responseClassId)
                     ? user.getEducationClass().getName() : null;
             List<Long> paidClassIds = userSubscriptionService == null
                 ? new ArrayList<>() : new ArrayList<>(userSubscriptionService.getPaidClassIds(user.getId()));
@@ -255,8 +257,8 @@ public class PaymentServiceImpl implements PaymentService {
                     .email(user.getEmail())
                     .fullName(user.getFullName())
                     .mobileNumber(user.getMobileNumber())
-                    .classId(responseClassId)
-                    .className(responseClassName)
+                    .classId(user.getEducationClass() == null ? null : user.getEducationClass().getId())
+                    .className(user.getEducationClass() == null ? null : user.getEducationClass().getName())
                     .subscriptionStatus(storedStatus == PaymentStatus.SUCCESS
                         ? SubscriptionStatus.PAID.name() : user.getEffectiveSubscriptionStatus().name())
                     .subscriptionPlan(responsePlan)
