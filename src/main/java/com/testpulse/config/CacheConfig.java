@@ -59,6 +59,28 @@ public class CacheConfig {
                 .maximumSize(3_000)
                 .expireAfterWrite(Duration.ofMinutes(10))
                 .recordStats());
+
+            cacheManager.registerCustomCache("tests", createCacheWithoutExpiry());
+            cacheManager.registerCustomCache("questions", createCacheWithoutExpiry());
+            cacheManager.registerCustomCache("educationClasses", createCacheWithoutExpiry());
+            cacheManager.registerCustomCache("subscriptionPlans", createCacheWithExpiry(Duration.ofDays(7)));
+            cacheManager.registerCustomCache("coupons", createCacheWithExpiry(Duration.ofDays(7)));
+
             return cacheManager;
+            }
+
+            private com.github.benmanes.caffeine.cache.Cache<Object, Object> createCacheWithoutExpiry() {
+            return Caffeine.newBuilder()
+                .maximumSize(3_000)
+                .recordStats()
+                .build();
+            }
+
+            private com.github.benmanes.caffeine.cache.Cache<Object, Object> createCacheWithExpiry(Duration expiry) {
+            return Caffeine.newBuilder()
+                .maximumSize(3_000)
+                .expireAfterWrite(expiry)
+                .recordStats()
+                .build();
     }
 }
