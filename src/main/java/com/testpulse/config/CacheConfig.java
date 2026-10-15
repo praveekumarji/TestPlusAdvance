@@ -11,7 +11,6 @@ import java.time.Duration;
 
 /**
  * Cache Configuration for TestPulse Application
- * 
  * This configuration enables caching across the application to reduce unnecessary database calls.
  * Uses Caffeine for bounded in-memory caching with the following cache names:
  * - users: Caches user data by email, mobile number, and ID
@@ -53,7 +52,8 @@ public class CacheConfig {
                 "coupons",
                 "bookmarks",
                 "appConfig",
-                "testAttempts"
+                "testAttempts",
+                "referralStatuses"
         );
             cacheManager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(3_000)

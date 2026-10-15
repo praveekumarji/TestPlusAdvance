@@ -6,6 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "test_attempt")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -16,28 +17,28 @@ public class TestAttempt {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private Long userId;
+    @Column(name = "user_id", nullable = false, length = 50)
+    private String userId;
 
-    @Column(nullable = false)
-    private Long testId;
+    @Column(name = "class_id", nullable = false)
+    private Integer classId;
 
-    private double scorePercentage;
+    @Column(name = "test_id", nullable = false, length = 50)
+    private String testId;
 
+    @Column(name = "score_percentage", nullable = false)
+    private int scorePercentage;
+
+    @Column(name = "correct_count", nullable = false)
     private int correctCount;
 
-    private int wrongCount;
+    @Column(name = "total_questions", nullable = false)
+    private int totalQuestions;
 
-    private int unattemptedCount;
-
+    @Column(name = "time_taken_seconds", nullable = false)
     private int timeTakenSeconds;
 
-    @Lob
-    private String userAnswersJson;
-
-    @Lob
-    private String questionDetailsJson;
-
-    @Column(nullable = false)
-    private LocalDateTime timestamp;
+    @Column(name = "created_at", nullable = false,
+            columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    private LocalDateTime createdAt;
 }

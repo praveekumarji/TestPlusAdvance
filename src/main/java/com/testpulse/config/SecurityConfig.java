@@ -36,6 +36,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/account-deletion/requests/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/classes", "/api/classes/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/classes").hasRole("ADMIN")
+                        .requestMatchers("/api/referrals", "/api/referrals/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/referral/status")
+                        .access((authentication, context) -> {
+                            var currentAuthentication = authentication.get();
+                            return new AuthorizationDecision(currentAuthentication instanceof JwtAuthenticationToken
+                                    && currentAuthentication.isAuthenticated());
+                        })
+                        .requestMatchers(HttpMethod.POST, "/api/referral/apply")
+                        .access((authentication, context) -> {
+                            var currentAuthentication = authentication.get();
+                            return new AuthorizationDecision(currentAuthentication instanceof JwtAuthenticationToken
+                                    && currentAuthentication.isAuthenticated());
+                        })
                         .requestMatchers(HttpMethod.POST,
                             "/api/payment/initiate",
                             "/api/payment/record-success",
