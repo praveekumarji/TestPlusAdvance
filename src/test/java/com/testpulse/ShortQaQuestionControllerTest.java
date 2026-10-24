@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,12 +50,14 @@ class ShortQaQuestionControllerTest {
     @Test
     void shouldCreateAndUpdateQuestion() throws Exception {
         ShortQaQuestionService service = mock(ShortQaQuestionService.class);
-        when(service.create(any(ShortQaQuestionRequest.class))).thenReturn(ShortQaQuestion.builder().id(9L).build());
+        when(service.createAll(anyList())).thenReturn(List.of(
+                ShortQaQuestion.builder().id(9L).build(),
+                ShortQaQuestion.builder().id(10L).build()));
         when(service.update(org.mockito.ArgumentMatchers.eq(9L), any(ShortQaQuestionRequest.class)))
                 .thenReturn(ShortQaQuestion.builder().id(9L).build());
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new ShortQaQuestionController(service)).build();
 
-        String payload = "{\"shortQAId\":1,\"subjectEn\":\"Biology\",\"subjectHi\":\"जीव विज्ञान\","
+        String question = "{\"shortQAId\":1,\"subjectEn\":\"Biology\",\"subjectHi\":\"जीव विज्ञान\","
                 + "\"topicEn\":\"Life Processes\",\"topicHi\":\"जैव प्रक्रम\","
                 + "\"questionEn\":\"What is photosynthesis?\",\"questionHi\":\"प्रकाश संश्लेषण क्या है?\","
                 + "\"answerEn\":\"Plants make glucose.\",\"answerHi\":\"पौधे ग्लूकोज बनाते हैं।\","
@@ -63,17 +66,19 @@ class ShortQaQuestionControllerTest {
 
         mockMvc.perform(post("/api/short-qa/questions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(payload))
+                        .content("[" + question + "," + question.replace("photosynthesis", "respiration") + "]"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(9));
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.ids[0]").value(9))
+                .andExpect(jsonPath("$.ids[1]").value(10));
 
         mockMvc.perform(put("/api/short-qa/questions/9")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(payload))
+                        .content(question))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9));
 
-        verify(service).create(any(ShortQaQuestionRequest.class));
+        verify(service).createAll(anyList());
         verify(service).update(org.mockito.ArgumentMatchers.eq(9L), any(ShortQaQuestionRequest.class));
     }
 }

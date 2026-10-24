@@ -32,10 +32,16 @@ public class ShortQaQuestionServiceImpl implements ShortQaQuestionService {
     @Override
     @Transactional
     @CacheEvict(cacheNames = "shortQaQuestions", allEntries = true)
-    public ShortQaQuestion create(ShortQaQuestionRequest request) {
-        ShortQaQuestion question = new ShortQaQuestion();
-        copyRequest(question, request);
-        return questionRepository.save(question);
+    public List<ShortQaQuestion> createAll(List<ShortQaQuestionRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            throw new IllegalArgumentException("At least one short-QA question is required.");
+        }
+        List<ShortQaQuestion> questions = requests.stream().map(request -> {
+            ShortQaQuestion question = new ShortQaQuestion();
+            copyRequest(question, request);
+            return question;
+        }).toList();
+        return questionRepository.saveAll(questions);
     }
 
     @Override

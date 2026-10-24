@@ -8,7 +8,7 @@ import com.testpulse.model.ShortQaQuestion;
 import java.util.List;
 
 public interface ShortQaQuestionService {
-    ShortQaQuestion create(ShortQaQuestionRequest request);
+    List<ShortQaQuestion> createAll(List<ShortQaQuestionRequest> requests);
 
     ShortQaQuestion update(Long questionId, ShortQaQuestionRequest request);
 

@@ -28,10 +28,11 @@ public class ShortQaQuestionController {
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody ShortQaQuestionRequest request) {
+    public ResponseEntity<?> create(@RequestBody List<ShortQaQuestionRequest> requests) {
         try {
-            ShortQaQuestion created = questionService.create(request);
-            return ResponseEntity.ok(Map.of("status", "success", "id", created.getId()));
+            List<ShortQaQuestion> created = questionService.createAll(requests);
+            List<Long> ids = created.stream().map(ShortQaQuestion::getId).toList();
+            return ResponseEntity.ok(Map.of("status", "success", "ids", ids));
         } catch (IllegalArgumentException exception) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", exception.getMessage()));
         }
