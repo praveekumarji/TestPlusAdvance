@@ -123,12 +123,21 @@ Authorization: Bearer YOUR_JWT_TOKEN</pre>
 <h3>Response</h3>
 <pre>{
   "success": true,
-  "message": "Payment record stored successfully",
-  "paymentStatus": "SUCCESS",
+  "message": "Payment verified and subscription activated successfully",
+  "subscriptionStatus": "PAID",
   "user": {
     "id": 123,
+    "email": "user@example.com",
+    "fullName": "Student Name",
+    "mobileNumber": "9876543210",
+    "classId": 1,
+    "className": "BIHAR BOARD 10",
     "subscriptionStatus": "PAID",
-    "subscriptionPlan": "BASIC_MONTHLY"
+    "subscriptionPlan": "Class 10th Full Access Pass",
+    "subscriptionExpiry": "2027-10-04T23:59:59Z",
+    "paidClassIds": [1],
+    "hasUsedTrial": true,
+    "role": "USER"
   }
 }</pre>
 

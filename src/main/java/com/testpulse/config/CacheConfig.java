@@ -47,6 +47,8 @@ public class CacheConfig {
                 "users",
                 "tests",
                 "questions",
+                "shortQa",
+                "shortQaQuestions",
                 "subscriptionPlans",
                 "educationClasses",
                 "coupons",
@@ -62,6 +64,8 @@ public class CacheConfig {
 
             cacheManager.registerCustomCache("tests", createCacheWithoutExpiry());
             cacheManager.registerCustomCache("questions", createCacheWithoutExpiry());
+            cacheManager.registerCustomCache("shortQa", createCacheWithoutExpiry());
+            cacheManager.registerCustomCache("shortQaQuestions", createCacheWithoutExpiry());
             cacheManager.registerCustomCache("educationClasses", createCacheWithoutExpiry());
             cacheManager.registerCustomCache("subscriptionPlans", createCacheWithExpiry(Duration.ofDays(7)));
             cacheManager.registerCustomCache("coupons", createCacheWithExpiry(Duration.ofDays(7)));

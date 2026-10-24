@@ -19,6 +19,8 @@ class CacheConfigTest {
 
         assertNoExpiry(cacheManager, "tests");
         assertNoExpiry(cacheManager, "questions");
+        assertNoExpiry(cacheManager, "shortQa");
+        assertNoExpiry(cacheManager, "shortQaQuestions");
         assertNoExpiry(cacheManager, "educationClasses");
         assertExpiry(cacheManager, "subscriptionPlans", TimeUnit.DAYS.toMillis(7));
         assertExpiry(cacheManager, "coupons", TimeUnit.DAYS.toMillis(7));
