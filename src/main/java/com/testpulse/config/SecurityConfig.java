@@ -35,6 +35,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/account-deletion/requests", "/api/account-deletion/requests/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/account-deletion/requests/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/classes", "/api/classes/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/mega-test/submit").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/mega-test/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/classes").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/short-qa", "/api/short-qa/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/short-qa", "/api/short-qa/**").hasRole("ADMIN")

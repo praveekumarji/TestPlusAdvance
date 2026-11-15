@@ -55,7 +55,8 @@ public class CacheConfig {
                 "bookmarks",
                 "appConfig",
                 "testAttempts",
-                "referralStatuses"
+                "referralStatuses",
+                "megaTestResponses"
         );
             cacheManager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(3_000)
@@ -69,6 +70,7 @@ public class CacheConfig {
             cacheManager.registerCustomCache("educationClasses", createCacheWithoutExpiry());
             cacheManager.registerCustomCache("subscriptionPlans", createCacheWithExpiry(Duration.ofDays(7)));
             cacheManager.registerCustomCache("coupons", createCacheWithExpiry(Duration.ofDays(7)));
+            cacheManager.registerCustomCache("megaTestResponses", createCacheWithExpiry(Duration.ofHours(10)));
 
             return cacheManager;
             }
