@@ -15,6 +15,8 @@ import java.util.Optional;
 public interface MegaTestDetailsRepository extends JpaRepository<MegaTestDetails, Long> {
     Optional<MegaTestDetails> findByClassIdAndTestDate(Long classId, LocalDate testDate);
 
+    Optional<MegaTestDetails> findFirstByClassIdOrderByTestDateDescIdDesc(Long classId);
+
     void deleteByClassIdAndTestDateNot(Long classId, LocalDate testDate);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

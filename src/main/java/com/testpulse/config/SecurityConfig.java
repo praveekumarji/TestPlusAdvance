@@ -40,6 +40,8 @@ public class SecurityConfig {
                                 "/api/mega-test/*/leaderboard",
                                 "/mega-test/leaderboard",
                                 "/mega-test/*/leaderboard").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/tests/mega/create", "/tests/mega/create")
+                        .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/mega-test/submit", "/mega-test/submit").permitAll()
                         .requestMatchers(HttpMethod.GET, "/mega-test/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/classes").hasRole("ADMIN")

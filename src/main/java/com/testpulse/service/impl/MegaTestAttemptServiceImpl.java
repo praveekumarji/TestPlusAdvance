@@ -20,13 +20,9 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.DayOfWeek;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
-import java.time.temporal.TemporalAdjusters;
 import java.util.stream.IntStream;
 
 @Service
@@ -35,18 +31,15 @@ public class MegaTestAttemptServiceImpl implements MegaTestAttemptService {
     private final MegaTestAttemptRepository attemptRepository;
     private final MegaTestDetailsRepository detailsRepository;
     private final ObjectMapper objectMapper;
-    private final ZoneId timeZone;
     private final int leaderboardLimit;
 
     public MegaTestAttemptServiceImpl(MegaTestAttemptRepository attemptRepository,
                                      MegaTestDetailsRepository detailsRepository,
                                      ObjectMapper objectMapper,
-                                     @Value("${mega-test.time-zone:Asia/Kolkata}") String timeZone,
                                      @Value("${mega-test.leaderboard-limit:5}") int leaderboardLimit) {
         this.attemptRepository = attemptRepository;
         this.detailsRepository = detailsRepository;
         this.objectMapper = objectMapper;
-        this.timeZone = ZoneId.of(timeZone);
         if (leaderboardLimit < 1 || leaderboardLimit > 100) {
             throw new IllegalArgumentException("mega-test.leaderboard-limit must be between 1 and 100.");
         }
@@ -125,11 +118,9 @@ public class MegaTestAttemptServiceImpl implements MegaTestAttemptService {
             throw new IllegalArgumentException("A valid class ID is required.");
         }
 
-        LocalDate testDate = LocalDate.now(timeZone)
-                .with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
-        MegaTestDetails testDetails = detailsRepository.findByClassIdAndTestDate(classId, testDate)
+        MegaTestDetails testDetails = detailsRepository.findFirstByClassIdOrderByTestDateDescIdDesc(classId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "No Mega test is available for this Sunday and class."));
+                        "No Mega test is available for this class."));
         return buildLeaderboard(testDetails, classId.intValue(), requestedUserId);
     }
 

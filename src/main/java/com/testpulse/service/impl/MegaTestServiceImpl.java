@@ -8,6 +8,7 @@ import com.testpulse.model.MegaTestDetails;
 import com.testpulse.repository.EducationClassRepository;
 import com.testpulse.repository.MegaTestDetailsRepository;
 import com.testpulse.service.CustomTestService;
+import com.testpulse.service.MegaTestNotFoundException;
 import com.testpulse.service.MegaTestService;
 import com.testpulse.util.LocalizedTextResolver;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,10 +33,6 @@ public class MegaTestServiceImpl implements MegaTestService {
     private final CustomTestService customTestService;
     private final ObjectMapper objectMapper;
     private final CacheManager cacheManager;
-    private final String subject;
-    private final int questionCount;
-    private final String difficulty;
-    private final String mode;
     private final ZoneId timeZone;
 
     public MegaTestServiceImpl(
@@ -44,14 +41,6 @@ public class MegaTestServiceImpl implements MegaTestService {
             CustomTestService customTestService,
             ObjectMapper objectMapper,
             CacheManager cacheManager,
-            @Value("${mega-test.subject}")
-            String subject,
-            @Value("${mega-test.question-count}")
-            int questionCount,
-            @Value("${mega-test.difficulty}")
-            String difficulty,
-            @Value("${mega-test.mode}")
-            String mode,
             @Value("${mega-test.time-zone:Asia/Kolkata}")
             String timeZone
     ) {
@@ -60,10 +49,6 @@ public class MegaTestServiceImpl implements MegaTestService {
         this.customTestService = customTestService;
         this.objectMapper = objectMapper;
         this.cacheManager = cacheManager;
-        this.subject = subject;
-        this.questionCount = questionCount;
-        this.difficulty = difficulty;
-        this.mode = mode;
         this.timeZone = ZoneId.of(timeZone);
     }
 
@@ -73,9 +58,7 @@ public class MegaTestServiceImpl implements MegaTestService {
             throw new IllegalArgumentException("A valid class ID is required.");
         }
 
-        EducationClass educationClass = educationClassRepository.findById(classId)
-                .filter(EducationClass::isActive)
-                .orElseThrow(() -> new IllegalArgumentException("Active class not found: " + classId));
+        validateActiveClass(classId);
 
         LocalDate testDate = LocalDate.now(timeZone)
                 .with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
@@ -89,22 +72,59 @@ public class MegaTestServiceImpl implements MegaTestService {
         }
         MegaTestResponse cachedResponse = cache.get(cacheKey, MegaTestResponse.class);
         if (cachedResponse != null) {
+            cachedResponse.setStatus(cachedResponse.getTestDate().equals(LocalDate.now(timeZone))
+                    ? "LIVE" : "ENDED");
             return cachedResponse;
         }
 
         MegaTestResponse response = megaTestDetailsRepository.findByClassIdAndTestDate(classId, testDate)
-                .map(savedDetails -> {
-                    deleteOtherWeeks(classId, testDate);
-                    return toResponse(savedDetails, normalizedLang);
-                })
-                .orElseGet(() -> generateAndSave(educationClass.getId(), testDate, normalizedLang));
+                .map(savedDetails -> toResponse(savedDetails, normalizedLang))
+                .orElseThrow(() -> new MegaTestNotFoundException(
+                        "No Mega test has been created for this Sunday and class."));
         cache.put(cacheKey, response);
         return response;
     }
 
-    private MegaTestResponse generateAndSave(Long classId, LocalDate testDate, String lang) {
+    @Override
+    public MegaTestResponse createCurrentMegaTest(Long classId, String subject, int questionCount,
+                                                  String difficulty, String mode, String testName) {
+        if (classId == null || classId <= 0) {
+            throw new IllegalArgumentException("A valid class ID is required.");
+        }
+        validateActiveClass(classId);
+        if (subject == null || subject.isBlank()) {
+            throw new IllegalArgumentException("Subject is required.");
+        }
+        if (testName == null || testName.isBlank()) {
+            throw new IllegalArgumentException("Test name is required.");
+        }
+
+        LocalDate testDate = LocalDate.now(timeZone)
+                .with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
+        var existingTest = megaTestDetailsRepository.findByClassIdAndTestDate(classId, testDate);
+        if (existingTest.isPresent()) {
+            deleteOtherWeeks(classId, testDate);
+            evictMegaTestResponses();
+            return toResponse(existingTest.get(), "en");
+        }
+
+        return generateAndSave(classId, testDate, subject.trim(), questionCount,
+                difficulty, mode, testName.trim());
+    }
+
+    private void validateActiveClass(Long classId) {
+        educationClassRepository.findById(classId)
+                .filter(EducationClass::isActive)
+                .orElseThrow(() -> new IllegalArgumentException("Active class not found: " + classId));
+    }
+
+    private MegaTestResponse generateAndSave(Long classId, LocalDate testDate, String subject,
+                                             int questionCount, String difficulty, String mode,
+                                             String testName) {
         CustomTestPreviewResponse generated = customTestService.generateCustomTest(
                 subject, questionCount, difficulty, mode, "en", classId);
+        generated.setTitle(testName);
         MegaTestDetails details = MegaTestDetails.builder()
                 .classId(classId)
                 .testDate(testDate)
@@ -114,15 +134,25 @@ public class MegaTestServiceImpl implements MegaTestService {
         try {
             MegaTestDetails savedDetails = megaTestDetailsRepository.saveAndFlush(details);
             deleteOtherWeeks(classId, testDate);
-            return toResponse(savedDetails, lang);
+            evictMegaTestResponses();
+            return toResponse(savedDetails, "en");
         } catch (DataIntegrityViolationException ex) {
             return megaTestDetailsRepository.findByClassIdAndTestDate(classId, testDate)
                     .map(savedDetails -> {
                         deleteOtherWeeks(classId, testDate);
-                        return toResponse(savedDetails, lang);
+                        evictMegaTestResponses();
+                        return toResponse(savedDetails, "en");
                     })
                     .orElseThrow(() -> ex);
         }
+    }
+
+    private void evictMegaTestResponses() {
+        Cache cache = cacheManager.getCache("megaTestResponses");
+        if (cache == null) {
+            throw new IllegalStateException("Mega test response cache is not configured.");
+        }
+        cache.clear();
     }
 
     private void deleteOtherWeeks(Long classId, LocalDate currentTestDate) {

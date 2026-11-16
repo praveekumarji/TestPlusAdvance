@@ -9,8 +9,10 @@ import com.testpulse.repository.EducationClassRepository;
 import com.testpulse.repository.MegaTestDetailsRepository;
 import com.testpulse.service.impl.MegaTestServiceImpl;
 import com.testpulse.config.CacheConfig;
+import com.testpulse.dto.MegaTestDetailsResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -38,15 +40,17 @@ class MegaTestServiceTest {
     private EducationClassRepository classRepository;
     private CustomTestService customTestService;
     private MegaTestServiceImpl service;
+    private CacheManager cacheManager;
 
     @BeforeEach
     void setUp() {
         detailsRepository = mock(MegaTestDetailsRepository.class);
         classRepository = mock(EducationClassRepository.class);
         customTestService = mock(CustomTestService.class);
+        cacheManager = new CacheConfig().cacheManager();
         service = new MegaTestServiceImpl(detailsRepository, classRepository, customTestService,
-                new ObjectMapper(), new CacheConfig().cacheManager(),
-                "science", 10, "MEDIUM", "PRACTICE", TIME_ZONE.getId());
+                new ObjectMapper(), cacheManager,
+                TIME_ZONE.getId());
         when(classRepository.findById(CLASS_ID)).thenReturn(Optional.of(
                 EducationClass.builder().id(CLASS_ID).active(true).build()));
     }
@@ -65,7 +69,7 @@ class MegaTestServiceTest {
         assertEquals(sunday, response.getTestDate());
         assertEquals(sunday.equals(LocalDate.now(TIME_ZONE)) ? "LIVE" : "ENDED", response.getStatus());
         assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
-        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, sunday);
+        verify(detailsRepository, never()).deleteByClassIdAndTestDateNot(any(), any());
         verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
     }
 
@@ -80,6 +84,25 @@ class MegaTestServiceTest {
 
         assertEquals(first, second);
         verify(detailsRepository).findByClassIdAndTestDate(CLASS_ID, sunday);
+    }
+
+    @Test
+    void recalculatesStatusOnCachedResponse() {
+        LocalDate sunday = currentSunday();
+        MegaTestResponse cached = MegaTestResponse.builder()
+                .id(12L)
+                .classId(CLASS_ID)
+                .testDate(sunday)
+                .status("LIVE")
+                .details(MegaTestDetailsResponse.builder().title("Cached test").build())
+                .build();
+        cacheManager.getCache("megaTestResponses")
+                .put(CLASS_ID + ":" + sunday + ":en", cached);
+
+        MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "en");
+
+        assertEquals(sunday.equals(LocalDate.now(TIME_ZONE)) ? "LIVE" : "ENDED", response.getStatus());
+        verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
     }
 
     @Test
@@ -117,7 +140,7 @@ class MegaTestServiceTest {
     }
 
     @Test
-    void generatesLanguageIndependentSnapshotAndReturnsHindiForFirstRequest() {
+    void createsEnglishSnapshotAndUsesRequestedTestName() {
         LocalDate sunday = currentSunday();
         CustomTestPreviewResponse generated = preview("generated-test", List.of(
                 CustomQuestionResponse.builder()
@@ -135,10 +158,12 @@ class MegaTestServiceTest {
             return details;
         });
 
-        MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "hi");
+        MegaTestResponse response = service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science");
 
-        assertEquals("हिंदी में प्रश्न", response.getDetails().getQuestions().get(0).getText());
-        assertEquals(List.of("हिंदी विकल्प"), response.getDetails().getQuestions().get(0).getOptions());
+        assertEquals("Sunday Mega - Science", response.getDetails().getTitle());
+        assertEquals("Question in English", response.getDetails().getQuestions().get(0).getText());
+        assertEquals(List.of("English option"), response.getDetails().getQuestions().get(0).getOptions());
         verify(customTestService).generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID);
     }
 
@@ -155,10 +180,11 @@ class MegaTestServiceTest {
             return details;
         });
 
-        MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "en");
+        MegaTestResponse response = service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science");
 
         assertEquals(15L, response.getId());
-        assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
+        assertEquals("Sunday Mega - Science", response.getDetails().getTitle());
         verify(customTestService).generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID);
         verify(detailsRepository).saveAndFlush(any(MegaTestDetails.class));
         verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, sunday);
@@ -176,7 +202,8 @@ class MegaTestServiceTest {
         when(detailsRepository.saveAndFlush(any(MegaTestDetails.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate weekly Mega test"));
 
-        MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "en");
+        MegaTestResponse response = service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science");
 
         assertEquals(18L, response.getId());
         assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
@@ -189,6 +216,33 @@ class MegaTestServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> service.getCurrentMegaTest(2L, "en"));
         verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
+    }
+
+    @Test
+    void getCurrentMegaTestDoesNotCreateWhenNoSnapshotExists() {
+        LocalDate sunday = currentSunday();
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.empty());
+
+        assertThrows(com.testpulse.service.MegaTestNotFoundException.class,
+                () -> service.getCurrentMegaTest(CLASS_ID, "en"));
+        verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
+        verify(detailsRepository, never()).saveAndFlush(any());
+        verify(detailsRepository, never()).deleteByClassIdAndTestDateNot(any(), any());
+    }
+
+    @Test
+    void createReturnsExistingCurrentTestWithoutRegenerating() {
+        LocalDate sunday = currentSunday();
+        MegaTestDetails existing = savedDetails(12L, sunday, preview("existing-preview"));
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.of(existing));
+
+        MegaTestResponse response = service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "New test title");
+
+        assertEquals(12L, response.getId());
+        assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
+        verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
+        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, sunday);
     }
 
     private static LocalDate currentSunday() {

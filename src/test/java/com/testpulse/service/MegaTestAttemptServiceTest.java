@@ -42,8 +42,7 @@ class MegaTestAttemptServiceTest {
     void setUp() throws Exception {
         attemptRepository = mock(MegaTestAttemptRepository.class);
         detailsRepository = mock(MegaTestDetailsRepository.class);
-        service = new MegaTestAttemptServiceImpl(attemptRepository, detailsRepository, new ObjectMapper(),
-                "Asia/Kolkata", 5);
+        service = new MegaTestAttemptServiceImpl(attemptRepository, detailsRepository, new ObjectMapper(), 5);
         when(detailsRepository.findByIdForUpdate(105L)).thenReturn(Optional.of(
                 MegaTestDetails.builder()
                         .id(105L)
@@ -178,13 +177,13 @@ class MegaTestAttemptServiceTest {
     }
 
     @Test
-    void findsCurrentSundayTestByClassAndReturnsItsLeaderboard() {
-        var currentSunday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"))
-                .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY));
-        when(detailsRepository.findByClassIdAndTestDate(1L, currentSunday))
+    void findsAvailableTestForClassRegardlessOfItsTestDate() {
+        var oldTestDate = java.time.LocalDate.of(2024, 1, 7);
+        when(detailsRepository.findFirstByClassIdOrderByTestDateDescIdDesc(1L))
                 .thenReturn(Optional.of(MegaTestDetails.builder()
                         .id(105L)
                         .classId(1L)
+                        .testDate(oldTestDate)
                         .responseJson(jsonPreview())
                         .build()));
         when(attemptRepository.countByTestId(TEST_ID)).thenReturn(0L);
@@ -196,14 +195,12 @@ class MegaTestAttemptServiceTest {
         assertEquals(TEST_ID, response.getTestId());
         assertEquals(1L, response.getClassId());
         assertEquals(0L, response.getTotalParticipants());
-        verify(detailsRepository).findByClassIdAndTestDate(1L, currentSunday);
+        verify(detailsRepository).findFirstByClassIdOrderByTestDateDescIdDesc(1L);
     }
 
     @Test
-    void currentLeaderboardReturnsClearErrorWhenCurrentTestDoesNotExist() {
-        var currentSunday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"))
-                .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY));
-        when(detailsRepository.findByClassIdAndTestDate(1L, currentSunday)).thenReturn(Optional.empty());
+    void currentLeaderboardReturnsClearErrorWhenClassHasNoTest() {
+        when(detailsRepository.findFirstByClassIdOrderByTestDateDescIdDesc(1L)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.getCurrentLeaderboard(1L, null));
