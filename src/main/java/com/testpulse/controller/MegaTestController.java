@@ -38,10 +38,12 @@ public class MegaTestController {
             @RequestParam int questionCount,
             @RequestParam String difficulty,
             @RequestParam String mode,
-            @RequestParam String testName) {
+            @RequestParam String testName,
+            @RequestParam String testType,
+            @RequestParam String description) {
         try {
             return ResponseEntity.ok(megaTestService.createCurrentMegaTest(
-                    classId, subject, questionCount, difficulty, mode, testName));
+                    classId, subject, questionCount, difficulty, mode, testName, testType, description));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }

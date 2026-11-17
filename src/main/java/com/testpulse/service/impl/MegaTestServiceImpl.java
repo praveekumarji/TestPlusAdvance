@@ -5,6 +5,7 @@ import com.testpulse.dto.MegaTestDetailsResponse;
 import com.testpulse.dto.MegaTestResponse;
 import com.testpulse.model.EducationClass;
 import com.testpulse.model.MegaTestDetails;
+import com.testpulse.model.TestType;
 import com.testpulse.repository.EducationClassRepository;
 import com.testpulse.repository.MegaTestDetailsRepository;
 import com.testpulse.service.CustomTestService;
@@ -19,10 +20,8 @@ import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
 import java.util.Locale;
 
 @Service
@@ -60,8 +59,7 @@ public class MegaTestServiceImpl implements MegaTestService {
 
         validateActiveClass(classId);
 
-        LocalDate testDate = LocalDate.now(timeZone)
-                .with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        LocalDate testDate = LocalDate.now(timeZone);
 
         String normalizedLang = lang == null || lang.isBlank()
                 ? "en" : lang.trim().toLowerCase(Locale.ROOT);
@@ -80,14 +78,15 @@ public class MegaTestServiceImpl implements MegaTestService {
         MegaTestResponse response = megaTestDetailsRepository.findByClassIdAndTestDate(classId, testDate)
                 .map(savedDetails -> toResponse(savedDetails, normalizedLang))
                 .orElseThrow(() -> new MegaTestNotFoundException(
-                        "No Mega test has been created for this Sunday and class."));
+                        "No Mega test has been created for today and this class."));
         cache.put(cacheKey, response);
         return response;
     }
 
     @Override
     public MegaTestResponse createCurrentMegaTest(Long classId, String subject, int questionCount,
-                                                  String difficulty, String mode, String testName) {
+                                                  String difficulty, String mode, String testName,
+                                                  String testType, String description) {
         if (classId == null || classId <= 0) {
             throw new IllegalArgumentException("A valid class ID is required.");
         }
@@ -98,9 +97,12 @@ public class MegaTestServiceImpl implements MegaTestService {
         if (testName == null || testName.isBlank()) {
             throw new IllegalArgumentException("Test name is required.");
         }
+        if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Description is required.");
+        }
+        String normalizedTestType = normalizeTestType(testType);
 
-        LocalDate testDate = LocalDate.now(timeZone)
-                .with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        LocalDate testDate = LocalDate.now(timeZone);
 
         var existingTest = megaTestDetailsRepository.findByClassIdAndTestDate(classId, testDate);
         if (existingTest.isPresent()) {
@@ -110,7 +112,7 @@ public class MegaTestServiceImpl implements MegaTestService {
         }
 
         return generateAndSave(classId, testDate, subject.trim(), questionCount,
-                difficulty, mode, testName.trim());
+                difficulty, mode, testName.trim(), normalizedTestType, description.trim());
     }
 
     private void validateActiveClass(Long classId) {
@@ -121,10 +123,12 @@ public class MegaTestServiceImpl implements MegaTestService {
 
     private MegaTestResponse generateAndSave(Long classId, LocalDate testDate, String subject,
                                              int questionCount, String difficulty, String mode,
-                                             String testName) {
+                                             String testName, String testType, String description) {
         CustomTestPreviewResponse generated = customTestService.generateCustomTest(
                 subject, questionCount, difficulty, mode, "en", classId);
         generated.setTitle(testName);
+        generated.setTestType(testType);
+        generated.setDescription(description);
         MegaTestDetails details = MegaTestDetails.builder()
                 .classId(classId)
                 .testDate(testDate)
@@ -144,6 +148,17 @@ public class MegaTestServiceImpl implements MegaTestService {
                         return toResponse(savedDetails, "en");
                     })
                     .orElseThrow(() -> ex);
+        }
+    }
+
+    private String normalizeTestType(String testType) {
+        if (testType == null || testType.isBlank()) {
+            throw new IllegalArgumentException("Test type is required and must be FREE or PAID.");
+        }
+        try {
+            return TestType.valueOf(testType.trim().toUpperCase(Locale.ROOT)).name();
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Test type must be FREE or PAID.");
         }
     }
 

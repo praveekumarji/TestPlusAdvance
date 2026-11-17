@@ -16,10 +16,8 @@ import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,17 +55,17 @@ class MegaTestServiceTest {
 
     @Test
     void returnsSavedCurrentWeekTestWithoutRegenerating() {
-        LocalDate sunday = currentSunday();
+        LocalDate today = today();
         CustomTestPreviewResponse preview = preview("saved-test");
-        MegaTestDetails saved = savedDetails(12L, sunday, preview);
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.of(saved));
+        MegaTestDetails saved = savedDetails(12L, today, preview);
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.of(saved));
 
         MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "en");
 
         assertEquals(12L, response.getId());
         assertEquals(CLASS_ID, response.getClassId());
-        assertEquals(sunday, response.getTestDate());
-        assertEquals(sunday.equals(LocalDate.now(TIME_ZONE)) ? "LIVE" : "ENDED", response.getStatus());
+        assertEquals(today, response.getTestDate());
+        assertEquals("LIVE", response.getStatus());
         assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
         verify(detailsRepository, never()).deleteByClassIdAndTestDateNot(any(), any());
         verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
@@ -75,39 +73,39 @@ class MegaTestServiceTest {
 
     @Test
     void cachesResponseForRepeatedRequestsWithSameClassDateAndLanguage() {
-        LocalDate sunday = currentSunday();
-        MegaTestDetails saved = savedDetails(12L, sunday, preview("saved-test"));
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.of(saved));
+        LocalDate today = today();
+        MegaTestDetails saved = savedDetails(12L, today, preview("saved-test"));
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.of(saved));
 
         MegaTestResponse first = service.getCurrentMegaTest(CLASS_ID, "en");
         MegaTestResponse second = service.getCurrentMegaTest(CLASS_ID, "en");
 
         assertEquals(first, second);
-        verify(detailsRepository).findByClassIdAndTestDate(CLASS_ID, sunday);
+        verify(detailsRepository).findByClassIdAndTestDate(CLASS_ID, today);
     }
 
     @Test
     void recalculatesStatusOnCachedResponse() {
-        LocalDate sunday = currentSunday();
+        LocalDate today = today();
         MegaTestResponse cached = MegaTestResponse.builder()
                 .id(12L)
                 .classId(CLASS_ID)
-                .testDate(sunday)
+                .testDate(today)
                 .status("LIVE")
                 .details(MegaTestDetailsResponse.builder().title("Cached test").build())
                 .build();
         cacheManager.getCache("megaTestResponses")
-                .put(CLASS_ID + ":" + sunday + ":en", cached);
+                .put(CLASS_ID + ":" + today + ":en", cached);
 
         MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "en");
 
-        assertEquals(sunday.equals(LocalDate.now(TIME_ZONE)) ? "LIVE" : "ENDED", response.getStatus());
+        assertEquals("LIVE", response.getStatus());
         verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
     }
 
     @Test
     void localizesSavedQuestionsForRequestedHindiLanguage() {
-        LocalDate sunday = currentSunday();
+        LocalDate today = today();
         CustomQuestionResponse question = CustomQuestionResponse.builder()
                 .id(42L)
                 .subject("Science")
@@ -123,9 +121,9 @@ class MegaTestServiceTest {
                 .hint("Think of a tree.")
                 .hintHi("एक पेड़ के बारे में सोचें।")
                 .build();
-        MegaTestDetails saved = savedDetails(12L, sunday,
+        MegaTestDetails saved = savedDetails(12L, today,
                 preview("saved-test", List.of(question)));
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.of(saved));
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.of(saved));
 
         MegaTestResponse response = service.getCurrentMegaTest(CLASS_ID, "hi");
         CustomQuestionResponse localized = response.getDetails().getQuestions().get(0);
@@ -141,7 +139,7 @@ class MegaTestServiceTest {
 
     @Test
     void createsEnglishSnapshotAndUsesRequestedTestName() {
-        LocalDate sunday = currentSunday();
+        LocalDate today = today();
         CustomTestPreviewResponse generated = preview("generated-test", List.of(
                 CustomQuestionResponse.builder()
                         .text("Question in English")
@@ -149,7 +147,7 @@ class MegaTestServiceTest {
                         .options(List.of("English option"))
                         .optionsHi(List.of("हिंदी विकल्प"))
                         .build()));
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.empty());
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.empty());
         when(customTestService.generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID))
                 .thenReturn(generated);
         when(detailsRepository.saveAndFlush(any(MegaTestDetails.class))).thenAnswer(invocation -> {
@@ -159,9 +157,13 @@ class MegaTestServiceTest {
         });
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science");
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "PAID",
+                "A custom science test");
 
         assertEquals("Sunday Mega - Science", response.getDetails().getTitle());
+        assertEquals("PAID", response.getDetails().getTestType());
+        assertEquals("A custom science test", response.getDetails().getDescription());
+        assertEquals("LIVE", response.getStatus());
         assertEquals("Question in English", response.getDetails().getQuestions().get(0).getText());
         assertEquals(List.of("English option"), response.getDetails().getQuestions().get(0).getOptions());
         verify(customTestService).generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID);
@@ -169,9 +171,9 @@ class MegaTestServiceTest {
 
     @Test
     void generatesAndStoresTestWhenCurrentWeekIsMissing() {
-        LocalDate sunday = currentSunday();
+        LocalDate today = today();
         CustomTestPreviewResponse generated = preview("generated-test");
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.empty());
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.empty());
         when(customTestService.generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID))
                 .thenReturn(generated);
         when(detailsRepository.saveAndFlush(any(MegaTestDetails.class))).thenAnswer(invocation -> {
@@ -181,21 +183,24 @@ class MegaTestServiceTest {
         });
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science");
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "FREE",
+                "Daily science test");
 
         assertEquals(15L, response.getId());
         assertEquals("Sunday Mega - Science", response.getDetails().getTitle());
+        assertEquals("FREE", response.getDetails().getTestType());
+        assertEquals("Daily science test", response.getDetails().getDescription());
         verify(customTestService).generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID);
         verify(detailsRepository).saveAndFlush(any(MegaTestDetails.class));
-        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, sunday);
+        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, today);
     }
 
     @Test
     void concurrentGenerationReturnsTheAlreadySavedWeeklyTest() {
-        LocalDate sunday = currentSunday();
+        LocalDate today = today();
         CustomTestPreviewResponse generated = preview("generated-test");
-        MegaTestDetails winner = savedDetails(18L, sunday, preview("winner-test"));
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday))
+        MegaTestDetails winner = savedDetails(18L, today, preview("winner-test"));
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today))
                 .thenReturn(Optional.empty(), Optional.of(winner));
         when(customTestService.generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID))
                 .thenReturn(generated);
@@ -203,11 +208,12 @@ class MegaTestServiceTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate weekly Mega test"));
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science");
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "FREE",
+                "Daily science test");
 
         assertEquals(18L, response.getId());
         assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
-        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, sunday);
+        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, today);
     }
 
     @Test
@@ -220,8 +226,8 @@ class MegaTestServiceTest {
 
     @Test
     void getCurrentMegaTestDoesNotCreateWhenNoSnapshotExists() {
-        LocalDate sunday = currentSunday();
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.empty());
+        LocalDate today = today();
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.empty());
 
         assertThrows(com.testpulse.service.MegaTestNotFoundException.class,
                 () -> service.getCurrentMegaTest(CLASS_ID, "en"));
@@ -232,21 +238,41 @@ class MegaTestServiceTest {
 
     @Test
     void createReturnsExistingCurrentTestWithoutRegenerating() {
-        LocalDate sunday = currentSunday();
-        MegaTestDetails existing = savedDetails(12L, sunday, preview("existing-preview"));
-        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, sunday)).thenReturn(Optional.of(existing));
+        LocalDate today = today();
+        MegaTestDetails existing = savedDetails(12L, today, preview("existing-preview"));
+        when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.of(existing));
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "New test title");
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "New test title", "PAID",
+                "New test description");
 
         assertEquals(12L, response.getId());
         assertEquals("Science PRACTICE Challenge", response.getDetails().getTitle());
         verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
-        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, sunday);
+        verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, today);
     }
 
-    private static LocalDate currentSunday() {
-        return LocalDate.now(TIME_ZONE).with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+    @Test
+    void rejectsUnsupportedTestType() {
+        assertThrows(IllegalArgumentException.class, () -> service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega", "TRIAL",
+                "Daily test"));
+
+        verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
+        verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsBlankDescription() {
+        assertThrows(IllegalArgumentException.class, () -> service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Daily Mega", "FREE", " "));
+
+        verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
+        verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
+    }
+
+    private static LocalDate today() {
+        return LocalDate.now(TIME_ZONE);
     }
 
     private static CustomTestPreviewResponse preview(String id) {
@@ -267,12 +293,12 @@ class MegaTestServiceTest {
                 .build();
     }
 
-    private static MegaTestDetails savedDetails(Long id, LocalDate sunday, CustomTestPreviewResponse preview) {
+    private static MegaTestDetails savedDetails(Long id, LocalDate testDate, CustomTestPreviewResponse preview) {
         try {
             return MegaTestDetails.builder()
                     .id(id)
                     .classId(CLASS_ID)
-                    .testDate(sunday)
+                    .testDate(testDate)
                     .responseJson(new ObjectMapper().writeValueAsString(preview))
                     .build();
         } catch (Exception ex) {
