@@ -85,6 +85,7 @@ public class MegaTestServiceImpl implements MegaTestService {
 
     @Override
     public MegaTestResponse createCurrentMegaTest(Long classId, String subject, int questionCount,
+                                                  int durationMinutes,
                                                   String difficulty, String mode, String testName,
                                                   String testType, String description) {
         if (classId == null || classId <= 0) {
@@ -100,6 +101,9 @@ public class MegaTestServiceImpl implements MegaTestService {
         if (description == null || description.isBlank()) {
             throw new IllegalArgumentException("Description is required.");
         }
+        if (durationMinutes <= 0) {
+            throw new IllegalArgumentException("Duration must be greater than zero minutes.");
+        }
         String normalizedTestType = normalizeTestType(testType);
 
         LocalDate testDate = LocalDate.now(timeZone);
@@ -111,7 +115,7 @@ public class MegaTestServiceImpl implements MegaTestService {
             return toResponse(existingTest.get(), "en");
         }
 
-        return generateAndSave(classId, testDate, subject.trim(), questionCount,
+        return generateAndSave(classId, testDate, subject.trim(), questionCount, durationMinutes,
                 difficulty, mode, testName.trim(), normalizedTestType, description.trim());
     }
 
@@ -122,13 +126,15 @@ public class MegaTestServiceImpl implements MegaTestService {
     }
 
     private MegaTestResponse generateAndSave(Long classId, LocalDate testDate, String subject,
-                                             int questionCount, String difficulty, String mode,
+                                             int questionCount, int durationMinutes,
+                                             String difficulty, String mode,
                                              String testName, String testType, String description) {
         CustomTestPreviewResponse generated = customTestService.generateCustomTest(
                 subject, questionCount, difficulty, mode, "en", classId);
         generated.setTitle(testName);
         generated.setTestType(testType);
         generated.setDescription(description);
+        generated.setDurationMinutes(durationMinutes);
         MegaTestDetails details = MegaTestDetails.builder()
                 .classId(classId)
                 .testDate(testDate)

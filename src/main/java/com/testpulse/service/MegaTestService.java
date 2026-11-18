@@ -6,6 +6,7 @@ public interface MegaTestService {
     MegaTestResponse getCurrentMegaTest(Long classId,String lang);
 
     MegaTestResponse createCurrentMegaTest(Long classId, String subject, int questionCount,
+                                           int durationMinutes,
                                            String difficulty, String mode, String testName,
                                            String testType, String description);
 }

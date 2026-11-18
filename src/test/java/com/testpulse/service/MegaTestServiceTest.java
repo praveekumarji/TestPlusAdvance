@@ -157,12 +157,13 @@ class MegaTestServiceTest {
         });
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "PAID",
+                CLASS_ID, "science", 10, 30, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "PAID",
                 "A custom science test");
 
         assertEquals("Sunday Mega - Science", response.getDetails().getTitle());
         assertEquals("PAID", response.getDetails().getTestType());
         assertEquals("A custom science test", response.getDetails().getDescription());
+        assertEquals(30, response.getDetails().getDurationMinutes());
         assertEquals("LIVE", response.getStatus());
         assertEquals("Question in English", response.getDetails().getQuestions().get(0).getText());
         assertEquals(List.of("English option"), response.getDetails().getQuestions().get(0).getOptions());
@@ -183,13 +184,14 @@ class MegaTestServiceTest {
         });
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "FREE",
+                CLASS_ID, "science", 10, 25, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "FREE",
                 "Daily science test");
 
         assertEquals(15L, response.getId());
         assertEquals("Sunday Mega - Science", response.getDetails().getTitle());
         assertEquals("FREE", response.getDetails().getTestType());
         assertEquals("Daily science test", response.getDetails().getDescription());
+        assertEquals(25, response.getDetails().getDurationMinutes());
         verify(customTestService).generateCustomTest("science", 10, "MEDIUM", "PRACTICE", "en", CLASS_ID);
         verify(detailsRepository).saveAndFlush(any(MegaTestDetails.class));
         verify(detailsRepository).deleteByClassIdAndTestDateNot(CLASS_ID, today);
@@ -208,7 +210,7 @@ class MegaTestServiceTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate weekly Mega test"));
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "FREE",
+                CLASS_ID, "science", 10, 25, "MEDIUM", "PRACTICE", "Sunday Mega - Science", "FREE",
                 "Daily science test");
 
         assertEquals(18L, response.getId());
@@ -243,7 +245,7 @@ class MegaTestServiceTest {
         when(detailsRepository.findByClassIdAndTestDate(CLASS_ID, today)).thenReturn(Optional.of(existing));
 
         MegaTestResponse response = service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "New test title", "PAID",
+                CLASS_ID, "science", 10, 30, "MEDIUM", "PRACTICE", "New test title", "PAID",
                 "New test description");
 
         assertEquals(12L, response.getId());
@@ -255,7 +257,7 @@ class MegaTestServiceTest {
     @Test
     void rejectsUnsupportedTestType() {
         assertThrows(IllegalArgumentException.class, () -> service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Sunday Mega", "TRIAL",
+                CLASS_ID, "science", 10, 30, "MEDIUM", "PRACTICE", "Sunday Mega", "TRIAL",
                 "Daily test"));
 
         verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
@@ -265,7 +267,17 @@ class MegaTestServiceTest {
     @Test
     void rejectsBlankDescription() {
         assertThrows(IllegalArgumentException.class, () -> service.createCurrentMegaTest(
-                CLASS_ID, "science", 10, "MEDIUM", "PRACTICE", "Daily Mega", "FREE", " "));
+                CLASS_ID, "science", 10, 30, "MEDIUM", "PRACTICE", "Daily Mega", "FREE", " "));
+
+        verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
+        verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsNonPositiveDuration() {
+        assertThrows(IllegalArgumentException.class, () -> service.createCurrentMegaTest(
+                CLASS_ID, "science", 10, 0, "MEDIUM", "PRACTICE", "Daily Mega", "FREE",
+                "Daily test"));
 
         verify(detailsRepository, never()).findByClassIdAndTestDate(any(), any());
         verify(customTestService, never()).generateCustomTest(any(), any(Integer.class), any(), any(), any(), any());
